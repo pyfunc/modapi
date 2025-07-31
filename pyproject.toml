@@ -7,8 +7,8 @@ readme = "README.md"
 packages = [{include = "modapi"}]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-pymodbus = {extras = ["serial"], version = "^3.0.0"}
+python = ">=3.10,<4.0"
+pymodbus = {extras = ["serial"], version = "^3.10.0"}
 python-dotenv = "^0.19.0"
 flask = "^2.0.0"
 paho-mqtt = "^2.0.0"

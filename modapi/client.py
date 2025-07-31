@@ -10,8 +10,12 @@ from typing import Optional, List, Union, Dict, Any
 try:
     from pymodbus.client.serial import ModbusSerialClient
     from pymodbus.exceptions import ModbusException, ConnectionException
-    # Usunięto import Endian, ponieważ nie jest używany w kodzie
-    from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
+    # Try to import payload modules, but make them optional
+    try:
+        from pymodbus.payload import BinaryPayloadDecoder, BinaryPayloadBuilder
+    except ImportError:
+        BinaryPayloadDecoder = None
+        BinaryPayloadBuilder = None
 except ImportError:
     raise ImportError(
         "pymodbus library not found! Install with: pip install pymodbus[serial]"
@@ -152,7 +156,8 @@ class ModbusClient:
                  stopbits: int = 1,
                  bytesize: int = 8,
                  timeout: Optional[float] = None,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 mock_client: Optional[Any] = None):
         """
         Initialize Modbus RTU client
         
@@ -164,6 +169,7 @@ class ModbusClient:
             bytesize: Data bits (default: 8)
             timeout: Communication timeout in seconds (default: from .env MODBUS_TIMEOUT or 1.0)
             verbose: Enable verbose logging (default: False)
+            mock_client: For testing purposes, allows injecting a mock client
         """
         # Configure logging level based on verbose flag
         if verbose:
@@ -182,6 +188,9 @@ class ModbusClient:
         self.unit_id = int(os.getenv('MODBUS_DEVICE_ADDRESS', os.getenv('MODBUS_UNIT_ID', '1')))
         # Add alias for unit to match test expectations
         self.unit = self.unit_id
+        
+        # For testing - store mock client if provided
+        self.mock_client = mock_client
         self.client = None
         
         logger.info(f"Initializing Modbus RTU client on {self.port}")
@@ -196,12 +205,14 @@ class ModbusClient:
         Returns:
             bool: True if connection successful, False otherwise
         """
+        # If a mock client was provided, use it directly
+        if self.mock_client:
+            self.client = self.mock_client
+            # Don't call connect() on the mock_client as it's already set up in tests
+            return True
+            
         try:
-            # If we're in a test environment, don't create a new client
-            if hasattr(self, 'mock_serial'):
-                self.client = self.mock_serial
-                return True
-                
+            # Create a real ModbusSerialClient
             self.client = ModbusSerialClient(
                 method='rtu',
                 port=self.port,
@@ -222,10 +233,20 @@ class ModbusClient:
             logger.error(f"Error connecting to {self.port}: {e}")
             return False
             
+    def is_connected(self):
+        """
+        Check if client is connected
+        
+        Returns:
+            bool: True if connected, False otherwise
+        """
+        return self.client is not None
+            
     def disconnect(self):
         """Disconnect from Modbus device"""
         if self.client and hasattr(self.client, 'close'):
             self.client.close()
+            self.client = None
             logger.info("Disconnected from Modbus device")
     
     def close(self):
@@ -244,25 +265,22 @@ class ModbusClient:
         Returns:
             List of boolean values or None if error
         """
-        if not self.client or not self.client.is_socket_open():
-            if not self.connect():
-                logger.error("Failed to connect to Modbus device")
-                return None
+        # Use provided unit or default to self.unit_id
+        unit = unit if unit is not None else self.unit_id
         
-        # Użyj unit_id z konfiguracji, jeśli nie podano innego
-        unit_to_use = unit if unit is not None else self.unit_id
-        
+        if not self.is_connected():
+            logger.error("Client not connected")
+            return None
+            
         try:
-            result = self.client.read_coils(address, count, unit=unit_to_use)
-            if result.isError():
-                logger.error(f"Error reading coils: {result}")
+            response = self.client.read_coils(address, count, unit=unit)
+            
+            if response and not getattr(response, 'isError', True):
+                return response.bits
+            else:
+                logger.error(f"Error reading coils: {response}")
                 return None
-            
-            # Convert to list of booleans
-            values = result.bits[:count]
-            logger.info(f"Read {count} coils from address {address}: {values}")
-            return values
-            
+                
         except Exception as e:
             logger.error(f"Error reading coils: {e}")
             return None
@@ -279,17 +297,19 @@ class ModbusClient:
         Returns:
             List of boolean values or None if error
         """
+        if not self.is_connected():
+            logger.error("Client not connected")
+            return None
+            
         try:
-            result = self.client.read_discrete_inputs(address, count, unit=unit)
-            if result.isError():
-                logger.error(f"Error reading discrete inputs: {result}")
+            response = self.client.read_discrete_inputs(address, count, unit=unit)
+            
+            if response and not getattr(response, 'isError', True):
+                return response.bits
+            else:
+                logger.error(f"Error reading discrete inputs: {response}")
                 return None
                 
-            # Convert to list of booleans
-            values = result.bits[:count]
-            logger.info(f"Read {count} discrete inputs from address {address}: {values}")
-            return values
-            
         except Exception as e:
             logger.error(f"Error reading discrete inputs: {e}")
             return None
@@ -306,17 +326,19 @@ class ModbusClient:
         Returns:
             List of register values or None if error
         """
+        if not self.is_connected():
+            logger.error("Client not connected")
+            return None
+            
         try:
-            result = self.client.read_holding_registers(address, count, unit=unit)
-            if result.isError():
-                logger.error(f"Error reading holding registers: {result}")
+            response = self.client.read_holding_registers(address, count, unit=unit)
+            
+            if response and not getattr(response, 'isError', True):
+                return response.registers
+            else:
+                logger.error(f"Error reading holding registers: {response}")
                 return None
                 
-            # Convert to list of integers
-            values = result.registers
-            logger.info(f"Read {count} holding registers from address {address}: {values}")
-            return values
-            
         except Exception as e:
             logger.error(f"Error reading holding registers: {e}")
             return None
@@ -333,17 +355,19 @@ class ModbusClient:
         Returns:
             List of register values or None if error
         """
+        if not self.is_connected():
+            logger.error("Client not connected")
+            return None
+            
         try:
-            result = self.client.read_input_registers(address, count, unit=unit)
-            if result.isError():
-                logger.error(f"Error reading input registers: {result}")
+            response = self.client.read_input_registers(address, count, unit=unit)
+            
+            if response and not getattr(response, 'isError', True):
+                return response.registers
+            else:
+                logger.error(f"Error reading input registers: {response}")
                 return None
                 
-            # Convert to list of integers
-            values = result.registers
-            logger.info(f"Read {count} input registers from address {address}: {values}")
-            return values
-            
         except Exception as e:
             logger.error(f"Error reading input registers: {e}")
             return None
@@ -394,12 +418,15 @@ class ModbusClient:
             True if successful, False otherwise
         """
         try:
-            result = self.client.write_register(address, value, unit=unit)
-            if result.isError():
-                logger.error(f"Error writing register: {result}")
+            if self.client is None and not self.connect():
+                logger.error("Failed to connect to Modbus device")
                 return False
                 
-            logger.info(f"Written register at address {address}: {value}")
+            response = self.client.write_register(address, value, unit=unit)
+            if response.isError():
+                logger.error(f"Error writing register: {response}")
+                return False
+                
             return True
             
         except Exception as e:
