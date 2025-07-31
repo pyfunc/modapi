@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "modapi"
-version = "0.1.6"
+version = "0.1.7"
 description = "Unified API for Modbus communication"
 authors = ["Tom Sapletta <info@softreck.dev>"]
 readme = "README.md"

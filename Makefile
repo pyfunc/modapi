@@ -78,7 +78,7 @@ check-version:
 	@echo "Upewnij się, że wersja jest unikalna przed publikacją."
 
 # Publikacja paczki w PyPI
-publish: check-version build
+publish: check-version bump-patch build
 	@echo "Publikowanie w PyPI..."
 	poetry publish
 

@@ -27,6 +27,8 @@ class TestRestApi(unittest.TestCase):
     def test_status_endpoint(self):
         """Test /api/status endpoint"""
         self.mock_client.is_connected.return_value = True
+        # Set port property on mock to match expected value
+        self.mock_client.port = '/dev/ttyUSB0'
         response = self.client.get('/api/status')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
