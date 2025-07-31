@@ -1,3 +1,26 @@
+.idea
+.idea/*
+*.iml
+.vscode
+.vscode/*
+.db
+.db-wal
+.json
+*.json
+*.sqlite
+*.sqlite-wal
+*.db-shm
+*.db-shm-wal
+*.db-wal-shm
+.cache
+venv
+.venv
+egg-info
+# Node
+node_modules
+modbusapi.egg-info
+# Yarn
+yarn-error.log
 # Logs
 logs
 *.log
