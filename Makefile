@@ -27,7 +27,7 @@ dev:
 
 # Uruchomienie testów jednostkowych
 test:
-	poetry run pytest modapi/tests/
+	poetry run pytest tests/
 
 # Sprawdzenie kodu pod kątem błędów stylistycznych
 lint:
