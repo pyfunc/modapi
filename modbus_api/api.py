@@ -370,7 +370,7 @@ def start_mqtt_broker(port: Optional[str] = None,
                      mqtt_broker: str = 'localhost',
                      mqtt_port: int = 1883,
                      mqtt_topic_prefix: str = 'modbus',
-                     client_id: str = 'modbus_api',
+                     client_id: str = 'modapi',
                      username: Optional[str] = None,
                      password: Optional[str] = None):
     """
@@ -383,7 +383,7 @@ def start_mqtt_broker(port: Optional[str] = None,
         mqtt_broker: MQTT broker address (default: localhost)
         mqtt_port: MQTT broker port (default: 1883)
         mqtt_topic_prefix: Prefix for MQTT topics (default: modbus)
-        client_id: MQTT client ID (default: modbus_api)
+        client_id: MQTT client ID (default: modapi)
         username: MQTT username (default: None)
         password: MQTT password (default: None)
     """

@@ -15,15 +15,58 @@ Unified API for Modbus communication with multiple interfaces: Shell CLI, REST A
 
 ## Installation
 
-```bash
-# From source
-pip install -e .
+This project uses [Poetry](https://python-poetry.org/) for dependency management.
 
-# With specific features
-pip install -e .[rest]  # Only REST API
-pip install -e .[mqtt]  # Only MQTT API
-pip install -e .[dev]   # Development tools
-```
+1. Install Poetry if you haven't already:
+   ```bash
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
+
+2. Clone the repository and install dependencies:
+   ```bash
+   git clone https://github.com/yourusername/modbusapi.git
+   cd modbusapi
+   poetry install  # Install all dependencies
+   
+   # Or install with specific groups:
+   poetry install --only main,rest  # Only REST API
+   poetry install --only main,mqtt  # Only MQTT API
+   poetry install --with dev        # Development tools
+   ```
+
+3. Activate the virtual environment:
+   ```bash
+   poetry shell
+   ```
+
+## Development
+
+- Install development dependencies:
+  ```bash
+  poetry install --with dev
+  ```
+
+- Run tests:
+  ```bash
+  poetry run pytest
+  ```
+
+- Run with coverage:
+  ```bash
+  poetry run pytest --cov=modapi tests/
+  ```
+
+## Building and Publishing
+
+- Build the package:
+  ```bash
+  poetry build
+  ```
+
+- Publish to PyPI:
+  ```bash
+  poetry publish --build
+  ```
 
 ## Usage
 
