@@ -1,4 +1,4 @@
-# ModbusAPI
+# modapi
 
 Unified API for Modbus communication with multiple interfaces: Shell CLI, REST API, and MQTT.
 
@@ -24,8 +24,8 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 
 2. Clone the repository and install dependencies:
    ```bash
-   git clone https://github.com/yourusername/modbusapi.git
-   cd modbusapi
+   git clone https://github.com/yourusername/modapi.git
+   cd modapi
    poetry install  # Install all dependencies
    
    # Or install with specific groups:
@@ -74,23 +74,23 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 
 ```bash
 # Basic commands
-modbusapi rc 0 8       # Read 8 coils starting at address 0
-modbusapi wc 0 1       # Write value 1 to coil at address 0
-modbusapi rh 0 5       # Read 5 holding registers starting at address 0
+modapi rc 0 8       # Read 8 coils starting at address 0
+modapi wc 0 1       # Write value 1 to coil at address 0
+modapi rh 0 5       # Read 5 holding registers starting at address 0
 
 # With options
-modbusapi -v rc 0 8    # Verbose mode
-modbusapi -p /dev/ttyACM0 wc 0 1  # Specify port
-modbusapi --scan       # Scan for Modbus devices
+modapi -v rc 0 8    # Verbose mode
+modapi -p /dev/ttyACM0 wc 0 1  # Specify port
+modapi --scan       # Scan for Modbus devices
 
 # Interactive mode
-modbusapi --interactive
+modapi --interactive
 ```
 
 ### REST API
 
 ```python
-from modbusapi import create_rest_app
+from modapi import create_rest_app
 
 # Create and run Flask app
 app = create_rest_app(port='/dev/ttyACM0', api_port=5000)
@@ -114,7 +114,7 @@ app.run_server()
 ### MQTT API
 
 ```python
-from modbusapi import start_mqtt_broker
+from modapi import start_mqtt_broker
 
 # Start MQTT client
 client = start_mqtt_broker(
@@ -138,7 +138,7 @@ client = start_mqtt_broker(
 
 ## Configuration
 
-ModbusAPI can be configured using environment variables or directly in code:
+modapi can be configured using environment variables or directly in code:
 
 ```
 # .env file

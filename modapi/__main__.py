@@ -1,5 +1,5 @@
 """
-ModbusAPI - Main entry point for running as a module
+modapi - Main entry point for running as a module
 """
 
 import os
@@ -15,18 +15,18 @@ from .shell import main as shell_main
 logger = logging.getLogger(__name__)
 
 def main():
-    """Main entry point for the modbusapi module"""
+    """Main entry point for the modapi module"""
     # Load environment variables
     load_env_files()
     
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='ModbusAPI - Unified API for Modbus communication')
+    parser = argparse.ArgumentParser(description='modapi - Unified API for Modbus communication')
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # REST API command
     rest_parser = subparsers.add_parser('rest', help='Run REST API server')
     rest_parser.add_argument('--host', default='0.0.0.0', help='Host to bind the server')
-    rest_parser.add_argument('--port', type=int, default=int(os.environ.get('MODBUSAPI_PORT', 5000)), 
+    rest_parser.add_argument('--port', type=int, default=int(os.environ.get('modapi_PORT', 5000)), 
                            help='Port to bind the server')
     rest_parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     rest_parser.add_argument('--modbus-port', help='Modbus serial port')
@@ -39,7 +39,7 @@ def main():
                            help='MQTT broker address')
     mqtt_parser.add_argument('--port', type=int, default=int(os.environ.get('MQTT_PORT', 1883)), 
                            help='MQTT broker port')
-    mqtt_parser.add_argument('--topic-prefix', default=os.environ.get('MQTT_TOPIC_PREFIX', 'modbusapi'), 
+    mqtt_parser.add_argument('--topic-prefix', default=os.environ.get('MQTT_TOPIC_PREFIX', 'modapi'), 
                            help='MQTT topic prefix')
     mqtt_parser.add_argument('--modbus-port', help='Modbus serial port')
     mqtt_parser.add_argument('--baudrate', type=int, help='Baud rate')
@@ -78,7 +78,7 @@ def main():
         )
     elif args.command == 'shell':
         # Convert args to sys.argv format for shell_main
-        sys_argv = ['modbusapi']
+        sys_argv = ['modapi']
         if args.interactive:
             sys_argv.append('--interactive')
         if args.verbose:

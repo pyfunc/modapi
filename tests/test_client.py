@@ -1,21 +1,21 @@
 """
-Tests for modbusapi.client module
+Tests for modapi.client module
 """
 import unittest
 from unittest.mock import patch, MagicMock
 import os
 import sys
 
-# Add parent directory to path to import modbusapi
+# Add parent directory to path to import modapi
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from modbusapi.client import ModbusClient, auto_detect_modbus_port
+from modapi.client import ModbusClient, auto_detect_modbus_port
 
 
 class TestModbusClient(unittest.TestCase):
     """Test cases for ModbusClient class"""
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def setUp(self, mock_serial_client):
         """Set up test fixtures"""
         self.mock_serial = mock_serial_client.return_value
@@ -40,7 +40,7 @@ class TestModbusClient(unittest.TestCase):
         self.client.close()
         self.mock_serial.close.assert_called_once()
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_read_coils(self, mock_serial_client):
         """Test read_coils method"""
         # Setup mock
@@ -59,7 +59,7 @@ class TestModbusClient(unittest.TestCase):
         self.assertEqual(result, [True, False, True])
         mock_client.read_coils.assert_called_with(0, 3, unit=1)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_read_coils_error(self, mock_serial_client):
         """Test read_coils method with error response"""
         # Setup mock
@@ -76,7 +76,7 @@ class TestModbusClient(unittest.TestCase):
         # Verify
         self.assertIsNone(result)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_write_coil(self, mock_serial_client):
         """Test write_coil method"""
         # Setup mock
@@ -94,7 +94,7 @@ class TestModbusClient(unittest.TestCase):
         self.assertTrue(result)
         mock_client.write_coil.assert_called_with(0, True, unit=1)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_write_coil_error(self, mock_serial_client):
         """Test write_coil method with error response"""
         # Setup mock
@@ -111,7 +111,7 @@ class TestModbusClient(unittest.TestCase):
         # Verify
         self.assertFalse(result)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_read_discrete_inputs(self, mock_serial_client):
         """Test read_discrete_inputs method"""
         # Setup mock
@@ -130,7 +130,7 @@ class TestModbusClient(unittest.TestCase):
         self.assertEqual(result, [True, False])
         mock_client.read_discrete_inputs.assert_called_with(0, 2, unit=1)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_read_holding_registers(self, mock_serial_client):
         """Test read_holding_registers method"""
         # Setup mock
@@ -149,7 +149,7 @@ class TestModbusClient(unittest.TestCase):
         self.assertEqual(result, [123, 456])
         mock_client.read_holding_registers.assert_called_with(0, 2, unit=1)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_write_register(self, mock_serial_client):
         """Test write_register method"""
         # Setup mock
@@ -167,7 +167,7 @@ class TestModbusClient(unittest.TestCase):
         self.assertTrue(result)
         mock_client.write_register.assert_called_with(0, 123, unit=1)
 
-    @patch('modbusapi.client.ModbusSerialClient')
+    @patch('modapi.client.ModbusSerialClient')
     def test_read_input_registers(self, mock_serial_client):
         """Test read_input_registers method"""
         # Setup mock

@@ -2,10 +2,10 @@
 
 # Default target
 help:
-	@echo "ModbusAPI Makefile (Poetry)"
+	@echo "modapi Makefile (Poetry)"
 	@echo ""
 	@echo "Dostępne komendy:"
-	@echo "  make install    - Instalacja paczki modbusapi"
+	@echo "  make install    - Instalacja paczki modapi"
 	@echo "  make dev        - Instalacja zależności developerskich"
 	@echo "  make test       - Uruchomienie testów jednostkowych"
 	@echo "  make lint       - Sprawdzenie kodu pod kątem błędów stylistycznych"
@@ -27,12 +27,12 @@ dev:
 
 # Uruchomienie testów jednostkowych
 test:
-	poetry run pytest modbusapi/tests/
+	poetry run pytest modapi/tests/
 
 # Sprawdzenie kodu pod kątem błędów stylistycznych
 lint:
-	poetry run flake8 modbusapi/
-	poetry run pylint modbusapi/
+	poetry run flake8 modapi/
+	poetry run pylint modapi/
 
 # Usunięcie plików tymczasowych i artefaktów
 clean:
@@ -91,15 +91,15 @@ publish-test: check-version build
 
 # Uruchomienie serwera REST API
 run-rest:
-	python -m modbusapi.api
+	python -m modapi.api
 
 # Uruchomienie serwera MQTT
 run-mqtt:
-	python -m modbusapi.mqtt
+	python -m modapi.mqtt
 
 # Uruchomienie interfejsu CLI
 run-cli:
-	python -m modbusapi.shell
+	python -m modapi.shell
 
 # Uruchomienie testów integracyjnych
 integration-test:

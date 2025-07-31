@@ -1,5 +1,5 @@
 """
-ModbusAPI Shell - Command Line Interface for Modbus operations
+modapi Shell - Command Line Interface for Modbus operations
 """
 
 import os
@@ -50,7 +50,7 @@ def print_command_help():
 Modbus API Command Line Tool
 
 Usage:
-  modbusapi [options] <command> [args...]
+  modapi [options] <command> [args...]
 
 Options:
   -v, --verbose    Enable verbose logging output
@@ -69,10 +69,10 @@ Commands:
   --scan                       Scan for Modbus devices
 
 Examples:
-  modbusapi -v rc 0 8 1        # Read 8 coils with verbose logging
-  modbusapi wc 0 on 1          # Turn on coil at address 0, unit 1
-  modbusapi rh 0 5 1           # Read 5 holding registers
-  modbusapi -p /dev/ttyACM0 wc 0 1  # Specify port explicitly
+  modapi -v rc 0 8 1        # Read 8 coils with verbose logging
+  modapi wc 0 on 1          # Turn on coil at address 0, unit 1
+  modapi rh 0 5 1           # Read 5 holding registers
+  modapi -p /dev/ttyACM0 wc 0 1  # Specify port explicitly
 """)
 
 

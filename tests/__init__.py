@@ -1,3 +1,3 @@
 """
-Tests for modbusapi package
+Tests for modapi package
 """

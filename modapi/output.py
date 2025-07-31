@@ -1,5 +1,5 @@
 """
-ModbusAPI Output Module - SVG widget for Modbus digital outputs
+modapi Output Module - SVG widget for Modbus digital outputs
 """
 
 import os

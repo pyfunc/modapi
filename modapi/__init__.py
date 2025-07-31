@@ -1,5 +1,5 @@
 """
-ModbusAPI - Unified API for Modbus communication
+modapi - Unified API for Modbus communication
 """
 
 import os

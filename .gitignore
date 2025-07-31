@@ -19,7 +19,7 @@ venv
 egg-info
 # Node
 node_modules
-modbusapi.egg-info
+modapi.egg-info
 # Yarn
 yarn-error.log
 # Logs

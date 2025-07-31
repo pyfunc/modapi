@@ -1,5 +1,5 @@
 """
-ModbusAPI - REST and MQTT API implementations
+modapi - REST and MQTT API implementations
 """
 
 import os

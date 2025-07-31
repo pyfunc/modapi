@@ -1,5 +1,5 @@
 """
-ModbusAPI Client - Core Modbus communication functionality
+modapi Client - Core Modbus communication functionality
 """
 
 import os

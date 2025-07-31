@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Skrypt pomocniczy do uruchamiania CLI modbusapi.
+Skrypt pomocniczy do uruchamiania CLI modapi.
 Zapewnia kompatybilność między różnymi środowiskami Pythona.
 """
 
@@ -10,7 +10,7 @@ import subprocess
 
 def main():
     """
-    Główna funkcja uruchamiająca CLI modbusapi z odpowiednim interpreterem.
+    Główna funkcja uruchamiająca CLI modapi z odpowiednim interpreterem.
     """
     # Ścieżka do interpretera Python z zainstalowanym pymodbus
     python_path = "/home/linuxbrew/.linuxbrew/opt/python@3.11/bin/python3.11"
@@ -23,7 +23,7 @@ def main():
     
     # Ścieżka do modułu shell.py
     module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                              "modbusapi", "shell.py")
+                              "modapi", "shell.py")
     
     # Sprawdź, czy moduł istnieje
     if not os.path.exists(module_path):

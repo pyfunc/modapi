@@ -1,5 +1,5 @@
 """
-Tests for modbusapi.api module
+Tests for modapi.api module
 """
 import unittest
 from unittest.mock import patch, MagicMock
@@ -8,16 +8,16 @@ import sys
 import json
 import flask
 
-# Add parent directory to path to import modbusapi
+# Add parent directory to path to import modapi
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from modbusapi.api import create_rest_app, start_mqtt_broker
+from modapi.api import create_rest_app, start_mqtt_broker
 
 
 class TestRestApi(unittest.TestCase):
     """Test cases for REST API"""
 
-    @patch('modbusapi.api.ModbusClient')
+    @patch('modapi.api.ModbusClient')
     def setUp(self, mock_client_class):
         """Set up test fixtures"""
         self.mock_client = mock_client_class.return_value
@@ -128,7 +128,7 @@ class TestRestApi(unittest.TestCase):
 
     def test_scan_endpoint(self):
         """Test /api/scan endpoint"""
-        with patch('modbusapi.api.auto_detect_modbus_port') as mock_scan:
+        with patch('modapi.api.auto_detect_modbus_port') as mock_scan:
             mock_scan.return_value = '/dev/ttyUSB0'
             response = self.client.get('/api/scan')
             self.assertEqual(response.status_code, 200)
@@ -139,8 +139,8 @@ class TestRestApi(unittest.TestCase):
 class TestMqttApi(unittest.TestCase):
     """Test cases for MQTT API"""
 
-    @patch('modbusapi.api.mqtt.Client')
-    @patch('modbusapi.api.ModbusClient')
+    @patch('modapi.api.mqtt.Client')
+    @patch('modapi.api.ModbusClient')
     def test_start_mqtt_broker(self, mock_modbus_client, mock_mqtt_client):
         """Test start_mqtt_broker function"""
         # Setup mocks
@@ -166,8 +166,8 @@ class TestMqttApi(unittest.TestCase):
         ]
         mock_mqtt.subscribe.assert_called_with(expected_topics[0])
 
-    @patch('modbusapi.api.mqtt.Client')
-    @patch('modbusapi.api.ModbusClient')
+    @patch('modapi.api.mqtt.Client')
+    @patch('modapi.api.ModbusClient')
     def test_mqtt_on_message(self, mock_modbus_client, mock_mqtt_client):
         """Test MQTT message handling"""
         # Setup mocks
