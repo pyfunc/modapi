@@ -77,19 +77,28 @@ def main():
             timeout=args.timeout
         )
     elif args.command == 'shell':
+        # Extract shell command and its arguments
+        shell_args = []
+        if hasattr(args, 'command') and isinstance(args.command, list) and len(args.command) > 0:
+            shell_args = args.command
+        
         # Convert args to sys.argv format for shell_main
         sys_argv = ['modapi']
-        if args.interactive:
-            sys_argv.append('--interactive')
-        if args.verbose:
-            sys_argv.append('--verbose')
         if args.modbus_port:
             sys_argv.extend(['--port', args.modbus_port])
         if args.baudrate:
-            sys_argv.extend(['--baudrate', str(args.baudrate)])
+            sys_argv.extend(['--baud', str(args.baudrate)])
         if args.timeout:
             sys_argv.extend(['--timeout', str(args.timeout)])
-        sys_argv.extend(args.command)
+        if hasattr(args, 'interactive') and args.interactive:
+            sys_argv.append('--interactive')
+        if hasattr(args, 'verbose') and args.verbose:
+            sys_argv.append('--verbose')
+            
+        # Add shell command and arguments
+        if shell_args:
+            sys_argv.append(shell_args[0])  # Command
+            sys_argv.extend(shell_args[1:])  # Arguments
         
         # Run shell main
         sys.argv = sys_argv

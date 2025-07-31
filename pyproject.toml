@@ -6,6 +6,9 @@ authors = ["Tom Sapletta <info@softreck.dev>"]
 readme = "README.md"
 packages = [{include = "modapi"}]
 
+[tool.poetry.scripts]
+modapi = "modapi.__main__:main"
+
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 pymodbus = {extras = ["serial"], version = "^3.10.0"}
