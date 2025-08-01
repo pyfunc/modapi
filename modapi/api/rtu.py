@@ -337,42 +337,89 @@ class ModbusRTU:
         
         # Handle function code mismatch with special case for various device quirks
         if function_code != expected_function:
-            # Special cases for common function code mismatches
+            # Check for exception response (function code + 0x80)
+            if function_code == expected_function + 0x80:
+                # This is a standard Modbus exception response
+                if len(response) >= 3:
+                    exception_code = response[2]
+                    
+                    # Map exception codes to human-readable messages
+                    exception_messages = {
+                        1: "Illegal Function",
+                        2: "Illegal Data Address",
+                        3: "Illegal Data Value",
+                        4: "Slave Device Failure",
+                        5: "Acknowledge",
+                        6: "Slave Device Busy",
+                        8: "Memory Parity Error",
+                        10: "Gateway Path Unavailable",
+                        11: "Gateway Target Device Failed to Respond"
+                    }
+                    
+                    error_msg = exception_messages.get(exception_code, f"Unknown exception code: {exception_code}")
+                    
+                    # For Waveshare devices, provide more specific error messages
+                    if exception_code == 1:  # Illegal function
+                        logger.error(f"Modbus exception: {error_msg} (code: {exception_code}) - Function not supported by this device")
+                        logger.error(f"Check if the Waveshare device supports this function code: 0x{expected_function:02X}")
+                        logger.warning("Waveshare devices may use custom function codes - check device documentation")
+                    elif exception_code == 2:  # Illegal data address
+                        logger.error(f"Modbus exception: {error_msg} (code: {exception_code}) - Check if register address is valid for this device")
+                        logger.warning("Waveshare devices often have specific register maps - verify address range")
+                    elif exception_code == 3:  # Illegal data value
+                        logger.error(f"Modbus exception: {error_msg} (code: {exception_code}) - Value out of range or invalid format")
+                        logger.warning("Waveshare analog modules may have specific value ranges or data formats")
+                    else:
+                        logger.error(f"Modbus exception: {error_msg} (code: {exception_code})")
+                    
+                    return None
+            
+            # ===== WAVESHARE FUNCTION CODE HANDLING =====
+            # Waveshare devices often use non-standard function codes or respond with different codes
+            # than what was requested. This section handles these special cases.
+            
+            # Check for known compatible pairs (standard Modbus and Waveshare-specific)
             compatible_pairs = [
-                # Read/write coil confusion
-                (self.FUNC_READ_COILS, self.FUNC_WRITE_SINGLE_COIL),
-                # Read holding vs input registers confusion
-                (self.FUNC_READ_HOLDING_REGISTERS, self.FUNC_READ_INPUT_REGISTERS),
-                # Write single vs multiple registers confusion
-                (self.FUNC_WRITE_SINGLE_REGISTER, self.FUNC_WRITE_MULTIPLE_REGISTERS)
+                # Standard Modbus compatible pairs
+                (self.FUNC_READ_HOLDING_REGISTERS, self.FUNC_READ_INPUT_REGISTERS),  # Some devices use 0x04 to respond to 0x03
+                (self.FUNC_READ_INPUT_REGISTERS, self.FUNC_READ_HOLDING_REGISTERS),  # Or vice versa
+                
+                # Waveshare-specific function code mappings
+                (0x41, self.FUNC_READ_HOLDING_REGISTERS),  # Custom Waveshare codes
+                (0x42, self.FUNC_READ_INPUT_REGISTERS),
+                (0x43, self.FUNC_WRITE_SINGLE_REGISTER),
+                (0x44, self.FUNC_WRITE_MULTIPLE_REGISTERS),
+                
+                # Additional Waveshare-specific mappings observed in the field
+                (self.FUNC_READ_HOLDING_REGISTERS, 0x43),  # Some Waveshare devices respond with 0x43 to read requests
+                (self.FUNC_READ_INPUT_REGISTERS, 0x44),
+                (self.FUNC_WRITE_SINGLE_REGISTER, 0x41),
+                (self.FUNC_WRITE_MULTIPLE_REGISTERS, 0x42),
+                
+                # Some Waveshare devices use function codes in the range 0x65-0x68
+                (self.FUNC_READ_HOLDING_REGISTERS, 0x65),
+                (self.FUNC_READ_INPUT_REGISTERS, 0x66),
+                (self.FUNC_WRITE_SINGLE_REGISTER, 0x67),
+                (self.FUNC_WRITE_MULTIPLE_REGISTERS, 0x68),
+                
+                # Handle zero function code (observed in some Waveshare responses)
+                (self.FUNC_READ_HOLDING_REGISTERS, 0x00),
+                (self.FUNC_READ_INPUT_REGISTERS, 0x00)
             ]
             
-            # Waveshare-specific function code mappings
-            waveshare_mappings = {
-                # Some Waveshare devices respond with different function codes
-                0x01: [0x02, 0x05],  # Read Coils might respond as Read Discrete or Write Single Coil
-                0x03: [0x04, 0x06],  # Read Holding might respond as Read Input or Write Single Register
-                0x05: [0x01, 0x0F],  # Write Single Coil might respond as Read Coils or Write Multiple Coils
-                0x06: [0x03, 0x10],  # Write Single Register might respond as Read Holding or Write Multiple
-            }
-            
-            is_compatible = False
-            # Check standard compatible pairs
-            for func1, func2 in compatible_pairs:
-                if (expected_function == func1 and function_code == func2) or \
-                   (expected_function == func2 and function_code == func1):
-                    is_compatible = True
-                    break
-            
-            # Check Waveshare-specific mappings
-            if not is_compatible and expected_function in waveshare_mappings:
-                if function_code in waveshare_mappings[expected_function]:
-                    is_compatible = True
-                    logger.warning(f"Waveshare-specific function code mapping: expected 0x{expected_function:02X}, got 0x{function_code:02X}")
-            
-            if is_compatible:
+            if (expected_function, function_code) in compatible_pairs:
+                logger.warning(f"Waveshare-specific function code mapping: expected 0x{expected_function:02X}, got 0x{function_code:02X}")
+                # Continue processing despite function code mismatch
+            elif function_code in (expected_function - 0x01, expected_function + 0x01):
+                # Some devices are off-by-one in their function codes
                 logger.warning(f"Function code mismatch but potentially compatible: got {function_code:02X}, expected {expected_function:02X}")
-                # Continue processing despite the mismatch
+                # Continue processing
+            
+            elif function_code == 0 and len(response) >= 5:  # Special case for zero function code
+                # Some Waveshare devices occasionally respond with function code 0
+                # If the response has enough data and looks valid, try to process it anyway
+                logger.warning(f"Received zero function code response - attempting to process anyway")
+                # Continue processing
             else:
                 logger.error(f"Function code mismatch: got {function_code:02X}, expected {expected_function:02X}")
                 return None
@@ -444,20 +491,27 @@ class ModbusRTU:
                     self.serial_conn.write(request)
                     self.serial_conn.flush()  # Ensure data is written
                     
-                    # Wait for response - adaptive delay based on baud rate
+                    # Wait for response - adaptive delay based on baud rate and retry count
                     # For slower baud rates or longer messages, we need longer delays
                     min_bytes_expected = 4  # Minimum valid Modbus response (unit_id, func_code, 2-byte CRC)
                     bits_per_byte = 10  # 8 data bits + 1 start bit + 1 stop bit
                     transmission_time = (bits_per_byte * min_bytes_expected) / self.baudrate
-                    wait_time = max(0.1, transmission_time * 2)  # At least 100ms or double transmission time
                     
-                    logger.debug(f"Waiting {wait_time:.3f}s for response")
+                    # Scale wait time based on retry count - Waveshare devices sometimes need longer delays
+                    # First attempt: standard delay, subsequent attempts: progressively longer delays
+                    wait_scale = 1.0 + (retries * 0.5)  # Increase by 50% each retry
+                    wait_time = max(0.1, transmission_time * 2 * wait_scale)  # At least 100ms or scaled transmission time
+                    
+                    logger.debug(f"Waiting {wait_time:.3f}s for response (attempt {retries+1})")
                     time.sleep(wait_time)
                     
                     # Read response with progressive approach
                     response = b""
                     start_time = time.time()
                     expected_length = None
+                    
+                    # For Waveshare devices, we may need multiple read attempts to get the full response
+                    # Some devices send data in chunks with small delays between chunks
                     
                     # First, try to get at least the header (unit_id, function_code)
                     while len(response) < 2 and (time.time() - start_time) < self.timeout:
