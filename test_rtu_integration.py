@@ -149,24 +149,28 @@ class TestModbusRTUIntegration(unittest.TestCase):
 class TestRTUFunctions(unittest.TestCase):
     """Tests for convenience functions"""
     
-    @patch('modapi.rtu.client.ModbusRTUClient')
-    def test_create_rtu_client(self, mock_rtu_client):
+    @patch('modapi.rtu.ModbusRTUClient')
+    def test_create_rtu_client(self, mock_rtu_client_class):
         """Test create_rtu_client function"""
         # Create a mock client
         mock_client = MagicMock()
-        mock_rtu_client.return_value = mock_client
-        
-        # Configure the mock client to return True for connect
         mock_client.connect.return_value = True
+        mock_rtu_client_class.return_value = mock_client
         
-        # Patch the create_rtu_client to use our mock client
-        with patch('modapi.rtu.client.ModbusRTUClient', return_value=mock_client):
-            # Test creating a client
-            client = create_rtu_client(port=TEST_PORT, baudrate=TEST_BAUDRATE)
-            
-            # Verify client was created and connected
-            self.assertIsNotNone(client)
-            mock_client.connect.assert_called_once()
+        # Import the function from the correct module
+        from modapi.rtu import create_rtu_client
+        
+        # Test creating a client
+        client = create_rtu_client(port=TEST_PORT, baudrate=TEST_BAUDRATE)
+        
+        # Verify client was created and connected
+        self.assertIsNotNone(client)
+        mock_rtu_client_class.assert_called_once_with(
+            port=TEST_PORT,
+            baudrate=TEST_BAUDRATE,
+            timeout=1.0
+        )
+        mock_client.connect.assert_called_once()
     
     @patch('modapi.rtu.client.ModbusRTUClient')
     def test_test_rtu_connection(self, mock_rtu_client):

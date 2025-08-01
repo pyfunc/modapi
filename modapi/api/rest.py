@@ -7,6 +7,7 @@ from typing import Optional
 
 from ..api.rtu import ModbusRTU, test_rtu_connection
 from ..api.ws import ModbusConnectionPool
+from ..config import DEFAULT_BAUDRATE, DEFAULT_PORT, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
 
 # Configure logging
 logger = logging.getLogger(__name__)

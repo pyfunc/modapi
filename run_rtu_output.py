@@ -83,15 +83,67 @@ HTML_TEMPLATE = """
     </div>
     
     <script>
+        // Track the last update time for rate limiting
+        let lastUpdateTime = 0;
+        const MIN_UPDATE_INTERVAL = 500; // 2 requests per second (1000ms / 2 = 500ms)
+        let updateQueue = [];
+        let isProcessingQueue = false;
+
+        // Process the update queue with rate limiting
+        async function processUpdateQueue() {
+            if (isProcessingQueue || updateQueue.length === 0) return;
+            
+            isProcessingQueue = true;
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastUpdateTime;
+            
+            // Wait if needed to maintain rate limit
+            if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL) {
+                const delay = MIN_UPDATE_INTERVAL - timeSinceLastUpdate;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
+            // Process the next update in the queue
+            const { coilId, state, error } = updateQueue.shift();
+            await updateCoilDisplay(coilId, state, error);
+            lastUpdateTime = Date.now();
+            
+            // Process next item in queue if any
+            isProcessingQueue = false;
+            if (updateQueue.length > 0) {
+                processUpdateQueue();
+            }
+        }
+
+        // Queue an update to be processed with rate limiting
+        function queueCoilUpdate(coilId, state, error = false) {
+            // Check if this coil already has a pending update
+            const existingIndex = updateQueue.findIndex(item => item.coilId === coilId);
+            if (existingIndex >= 0) {
+                // Replace the existing queued update for this coil
+                updateQueue[existingIndex] = { coilId, state, error };
+            } else {
+                // Add new update to the queue
+                updateQueue.push({ coilId, state, error });
+            }
+            processUpdateQueue();
+        }
+
         async function loadCoils() {
+            const now = Date.now();
+            // If we've updated recently, skip this load to prevent too many requests
+            if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+                return;
+            }
+            
             for (let i = 0; i < 8; i++) {
                 try {
                     const response = await fetch(`/coil/${i}`);
                     const data = await response.json();
-                    updateCoilDisplay(i, data.state || false);
+                    queueCoilUpdate(i, data.state || false);
                 } catch (error) {
                     console.error('Błąd odczytu cewki', i, error);
-                    updateCoilDisplay(i, false, true);
+                    queueCoilUpdate(i, false, true);
                 }
             }
         }

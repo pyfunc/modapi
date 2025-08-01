@@ -30,9 +30,13 @@ class TestRestApi(unittest.TestCase):
         self.mock_rtu_patcher = patch('modapi.api.rest.ModbusRTU')
         self.mock_pool_patcher = patch('modapi.api.rest.ModbusConnectionPool')
         
+        # Patch DEFAULT_BAUDRATE in rest module
+        self.mock_default_baudrate_patcher = patch('modapi.api.rest.DEFAULT_BAUDRATE', DEFAULT_BAUDRATE)
+        
         # Start the patchers
         self.mock_client_class = self.mock_rtu_patcher.start()
         self.mock_pool_class = self.mock_pool_patcher.start()
+        self.mock_default_baudrate_patcher.start()
         
         # Set up mock client with required behavior
         self.mock_client = self.mock_client_class.return_value
@@ -45,13 +49,14 @@ class TestRestApi(unittest.TestCase):
         self.mock_pool.get_connection.return_value = self.mock_client
         
         # Create Flask app with mocked client and pool
-        self.app = create_rest_app(port='/dev/ttyUSB0')
+        self.app = create_rest_app(port='/dev/ttyUSB0', baudrate=DEFAULT_BAUDRATE)
         self.client = self.app.test_client()
         
     def tearDown(self):
         """Tear down test fixtures"""
         self.mock_rtu_patcher.stop()
         self.mock_pool_patcher.stop()
+        self.mock_default_baudrate_patcher.stop()
 
     def test_status_endpoint(self):
         """Test /api/status endpoint"""

@@ -41,6 +41,9 @@ class ModbusRTU:
     Bezpośrednia komunikacja Modbus RTU przez port szeregowy
     """
     
+    # Class variable to track last operation time for RS485 delay
+    _last_operation_time = 0.0
+    
     def __init__(self,
                  port: str = '/dev/ttyACM0',
                  baudrate: int = None,  # Will use highest baudrate by default
@@ -49,7 +52,8 @@ class ModbusRTU:
                  stopbits: int = 1,
                  bytesize: int = 8,
                  enable_state_tracking: bool = True,
-                 log_directory: str = None):
+                 log_directory: str = None,
+                 rs485_delay: float = 0.2):  # Delay between RS485 operations in seconds
         """
         Initialize RTU Modbus connection
         
@@ -214,15 +218,16 @@ class ModbusRTU:
             logger.error(f"Connection error: {e}")
             return False
     
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from serial port"""
-        try:
-            with self.lock:
-                if self.serial_conn and self.serial_conn.is_open:
-                    self.serial_conn.close()
-                    logger.info("Disconnected from serial port")
-        except Exception as e:
-            logger.error(f"Disconnect error: {e}")
+        with self.lock:
+            if self.serial_conn and self.serial_conn.is_open:
+                self.serial_conn.close()
+                self.serial_conn = None
+                
+    def close(self) -> None:
+        """Close connection (alias for disconnect)"""
+        self.disconnect()
     
     def is_connected(self) -> bool:
         """Check if connected to serial port"""

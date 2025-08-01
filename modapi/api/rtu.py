@@ -116,30 +116,30 @@ def test_rtu_connection(port: str = DEFAULT_PORT,
     Returns:
         Tuple[bool, Dict]: (success, result_dict)
     """
-    result = {
-        'port': port,
-        'baudrate': baudrate,
-        'unit_id': unit_id,
-        'success': False,
-        'error': None
-    }
-    
     try:
+        # Create a client instance
         client = ModbusRTU(port=port, baudrate=baudrate, timeout=1.0)
-        if client.connect():
-            # Try to read a register to verify connection
-            response = client.read_holding_registers(0, 1, unit_id)
-            if response is not None:
-                result['success'] = True
-            else:
-                result['error'] = "No response from device"
-            client.disconnect()
-        else:
-            result['error'] = "Failed to connect to port"
+        
+        # Call the client's test_connection method
+        # This allows the test to mock this method
+        success, result = client.test_connection(unit_id)
+        
+        # Ensure the result has the expected format for backward compatibility
+        if isinstance(result, dict) and 'connected' not in result:
+            result['connected'] = success
+        
+        return success, result
     except Exception as e:
-        result['error'] = str(e)
-    
-    return result['success'], result
+        # Fallback result in case of error
+        result = {
+            'port': port,
+            'baudrate': baudrate,
+            'unit_id': unit_id,
+            'success': False,
+            'connected': False,
+            'error': str(e)
+        }
+        return False, result
 
 
 if __name__ == "__main__":
