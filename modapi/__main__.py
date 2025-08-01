@@ -100,6 +100,8 @@ def main():
             print("Error: No arguments provided for command")
             sys.exit(1)
             
+        # For cmd subcommand, we need to use the nested 'command' argument 
+        # as the actual modbus command (wc, rc, etc.)
         success, response = execute_command(
             command=args.command,
             args=args.args,

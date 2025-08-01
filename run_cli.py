@@ -1,60 +1,60 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Skrypt pomocniczy do uruchamiania CLI modapi.
-Zapewnia kompatybilność między różnymi środowiskami Pythona.
+run_cli.py - Helper script to run modapi CLI with proper Python environment
 """
 
 import os
 import sys
 import subprocess
+import shlex
 
 def main():
     """
-    Główna funkcja uruchamiająca CLI modapi z odpowiednim interpreterem.
+    Main entry point for CLI runner
+    
+    This script ensures the modapi package is run with the correct Python
+    interpreter and environment variables.
     """
-    # Ścieżka do interpretera Python z zainstalowanym pymodbus
-    python_path = "/home/linuxbrew/.linuxbrew/opt/python@3.11/bin/python3.11"
+    # Get the path to the current Python interpreter
+    python_exe = sys.executable
     
-    # Sprawdź, czy interpreter istnieje
-    if not os.path.exists(python_path):
-        print(f"Interpreter {python_path} nie istnieje.")
-        print("Próba użycia domyślnego interpretera...")
-        python_path = sys.executable
+    # Get the directory of this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Katalog główny projektu (gdzie znajduje się pakiet modapi)
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    
-    # Ścieżka do skryptu CLI w katalogu scripts
-    script_path = os.path.join(project_root, "scripts", "modapi")
-    
-    # Sprawdź, czy skrypt istnieje
-    if not os.path.exists(script_path):
-        print(f"Skrypt {script_path} nie istnieje.")
-        sys.exit(1)
-    
-    # Przekazanie argumentów do skryptu
-    args = sys.argv[1:] if len(sys.argv) > 1 else []
-    
-    # Uruchomienie skryptu CLI
-    cmd = [python_path, script_path] + args
-    print(f"Uruchamianie: {' '.join(cmd)}")
-    
-    # Dodanie katalogu projektu do PYTHONPATH
+    # Set PYTHONPATH to include the project root
     env = os.environ.copy()
-    if "PYTHONPATH" in env:
-        env["PYTHONPATH"] = f"{project_root}:{env['PYTHONPATH']}"
+    if 'PYTHONPATH' in env:
+        env['PYTHONPATH'] = f"{script_dir}:{env['PYTHONPATH']}"
     else:
-        env["PYTHONPATH"] = project_root
+        env['PYTHONPATH'] = script_dir
     
+    # Check if we have command line arguments
+    if len(sys.argv) > 1:
+        # Process the command line arguments
+        args = sys.argv[1:]
+        
+        # Check if the first argument is a direct Modbus command (wc, rc, etc.)
+        direct_commands = ['wc', 'rc', 'ri', 'rh', 'wh']
+        if args[0] in direct_commands:
+            # Convert to new format: modapi cmd <command> <args>
+            cmd = [python_exe, '-m', 'modapi', 'cmd', args[0]] + args[1:]
+        else:
+            # Pass arguments as is
+            cmd = [python_exe, '-m', 'modapi'] + args
+    else:
+        # No arguments, run the shell by default
+        cmd = [python_exe, '-m', 'modapi', 'shell']
+    
+    # Print the command being run (for debugging)
+    cmd_str = ' '.join(shlex.quote(arg) for arg in cmd)
+    print(f"Running: {cmd_str}")
+    
+    # Execute the command
     try:
-        result = subprocess.run(cmd, check=True, env=env)
-        sys.exit(result.returncode)
-    except subprocess.CalledProcessError as e:
-        print(f"Błąd wykonania: {e}")
-        sys.exit(e.returncode)
-    except Exception as e:
-        print(f"Nieoczekiwany błąd: {e}")
-        sys.exit(1)
+        return subprocess.call(cmd, env=env)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        return 1
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    sys.exit(main())

@@ -12,6 +12,7 @@ Unified API for Modbus communication with multiple interfaces: Shell CLI, REST A
   - **MQTT API** - MQTT interface for IoT applications
 - **Interactive Mode** - Interactive shell for manual Modbus operations
 - **JSON Output** - Structured JSON output for easy parsing
+- **Modular Architecture** - Separate modules for different interfaces (REST, MQTT, Shell, Command)
 
 ## Installation
 
@@ -70,94 +71,114 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
 
 ## Usage
 
-### Shell CLI
+### Command Line Interface
+
+The modapi CLI supports multiple subcommands:
 
 ```bash
-# Basic commands
-modapi rc 0 8       # Read 8 coils starting at address 0
-modapi wc 0 1       # Write value 1 to coil at address 0
-modapi rh 0 5       # Read 5 holding registers starting at address 0
+# Direct command execution
+modapi cmd wc 0 1       # Write value 1 to coil at address 0
+modapi cmd rc 0 8       # Read 8 coils starting at address 0
+modapi cmd rh 0 5       # Read 5 holding registers starting at address 0
+modapi cmd wh 0 42      # Write value 42 to holding register at address 0
+
+# Interactive shell
+modapi shell
+
+# REST API server
+modapi rest --host 0.0.0.0 --port 5000
+
+# MQTT client
+modapi mqtt --broker localhost --port 1883
+
+# Scan for Modbus devices
+modapi scan
 
 # With options
-modapi -v rc 0 8    # Verbose mode
-modapi -p /dev/ttyACM0 wc 0 1  # Specify port
-modapi --scan       # Scan for Modbus devices
+modapi cmd --verbose rc 0 8    # Verbose mode
+modapi cmd --modbus-port /dev/ttyACM0 wc 0 1  # Specify port
+```
 
-# Interactive mode
-modapi --interactive
+For backward compatibility, you can also use the direct command format:
+```bash
+# These are automatically converted to the new format
+./run_cli.py wc 0 1       # Equivalent to: modapi cmd wc 0 1
+./run_cli.py rc 0 8       # Equivalent to: modapi cmd rc 0 8
 ```
 
 ### REST API
 
 ```python
-from modapi import create_rest_app
+from modapi.api.rest import create_rest_app
 
 # Create and run Flask app
 app = create_rest_app(port='/dev/ttyACM0', api_port=5000)
-app.run_server()
+app.run(host='0.0.0.0', port=5000)
 ```
 
 #### REST API Endpoints
 
-- `GET /api/status` - Get Modbus connection status
-- `GET /api/coils/<address>` - Read single coil
+- `GET /api/status` - Get connection status
+- `GET /api/coils/<address>` - Read a single coil
 - `GET /api/coils/<address>/<count>` - Read multiple coils
-- `POST /api/coils/<address>` - Write single coil
-- `POST /api/toggle/<address>` - Toggle coil state
+- `PUT /api/coils/<address>` - Write to a coil
 - `GET /api/discrete_inputs/<address>/<count>` - Read discrete inputs
 - `GET /api/holding_registers/<address>/<count>` - Read holding registers
-- `POST /api/holding_registers/<address>` - Write holding register
+- `PUT /api/holding_registers/<address>` - Write to a holding register
 - `GET /api/input_registers/<address>/<count>` - Read input registers
 - `GET /api/scan` - Scan for Modbus devices
-- `GET /api/docs` - Get API documentation
 
 ### MQTT API
 
 ```python
-from modapi import start_mqtt_broker
+from modapi.api.mqtt import start_mqtt_broker
 
 # Start MQTT client
-client = start_mqtt_broker(
+start_mqtt_broker(
     port='/dev/ttyACM0',
-    mqtt_broker='localhost',
+    broker='localhost',
     mqtt_port=1883,
-    mqtt_topic_prefix='modbus'
+    topic_prefix='modbus'
 )
 ```
 
 #### MQTT Topics
 
-- `modbus/command/read_coil/<address>/<count>` - Read coils
-- `modbus/command/write_coil/<address>` - Write coil
-- `modbus/command/toggle_coil/<address>` - Toggle coil
-- `modbus/command/read_discrete_input/<address>/<count>` - Read discrete inputs
-- `modbus/command/read_holding_register/<address>/<count>` - Read holding registers
-- `modbus/command/write_holding_register/<address>` - Write holding register
-- `modbus/command/read_input_register/<address>/<count>` - Read input registers
-- `modbus/status` - Connection status
+- Subscribe to `modbus/command/#` to send commands
+- Subscribe to `modbus/request/#` to send requests
+- Publish to `modbus/command/write_coil` with payload `{"address": 0, "value": true}` to write to a coil
+- Publish to `modbus/request/read_coils` with payload `{"address": 0, "count": 8}` to read coils
+- Results are published to `modbus/result/<command>` and `modbus/response/<request>`
 
-## Configuration
+### Direct API Usage
 
-modapi can be configured using environment variables or directly in code:
+```python
+from modapi.api.cmd import execute_command
+from modapi.api.shell import interactive_mode
+
+# Execute a command directly
+success, response = execute_command('wc', ['0', '1'], port='/dev/ttyACM0')
+print(response)
+
+# Start interactive mode
+interactive_mode(port='/dev/ttyACM0', verbose=True)
+```
+
+## Project Structure
 
 ```
-# .env file
-MODBUS_PORT=/dev/ttyACM0
-MODBUS_BAUDRATE=9600
-MODBUS_TIMEOUT=1.0
-MODBUS_DEVICE_ADDRESS=1
-```
-
-## Development
-
-```bash
-# Install development dependencies
-pip install -e .[dev]
-
-# Run tests
-pytest
+modapi/
+├── api/
+│   ├── __init__.py    # Exports main API functions
+│   ├── cmd.py         # Direct command execution
+│   ├── mqtt.py        # MQTT broker client
+│   ├── rest.py        # REST API Flask app
+│   └── shell.py       # Interactive shell
+├── client.py          # Modbus client implementation
+├── __main__.py        # CLI entry point
+└── ...
 ```
 
 ## License
 
-Apache 2.0
+This project is licensed under the MIT License - see the LICENSE file for details.
