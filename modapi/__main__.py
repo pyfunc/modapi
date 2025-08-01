@@ -8,8 +8,8 @@ import argparse
 import logging
 
 from . import load_env_files
-from .api import create_rest_app, start_mqtt_broker
-from .shell import main as shell_main
+from .api import create_rest_app, start_mqtt_broker, interactive_mode, execute_command
+from .client import auto_detect_modbus_port
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -50,9 +50,19 @@ def main():
     shell_parser.add_argument('--modbus-port', help='Modbus serial port')
     shell_parser.add_argument('--baudrate', type=int, help='Baud rate')
     shell_parser.add_argument('--timeout', type=float, help='Timeout in seconds')
-    shell_parser.add_argument('--interactive', action='store_true', help='Run in interactive mode')
     shell_parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
-    shell_parser.add_argument('command', nargs='*', help='Command to run')
+    
+    # Direct command execution
+    cmd_parser = subparsers.add_parser('cmd', help='Execute Modbus command directly')
+    cmd_parser.add_argument('--modbus-port', help='Modbus serial port')
+    cmd_parser.add_argument('--baudrate', type=int, help='Baud rate')
+    cmd_parser.add_argument('--timeout', type=float, help='Timeout in seconds')
+    cmd_parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+    cmd_parser.add_argument('command', help='Command: wc (write coil), rc (read coil), etc.')
+    cmd_parser.add_argument('args', nargs='*', help='Command arguments')
+    
+    # Scan command
+    scan_parser = subparsers.add_parser('scan', help='Scan for Modbus devices')
     
     args = parser.parse_args()
     
@@ -69,40 +79,51 @@ def main():
         app.run(host=args.host, port=args.port, debug=args.debug)
     elif args.command == 'mqtt':
         start_mqtt_broker(
-            broker=args.broker,
-            port=args.port,
-            topic_prefix=args.topic_prefix,
-            modbus_port=args.modbus_port,
+            port=args.modbus_port,
             baudrate=args.baudrate,
-            timeout=args.timeout
+            timeout=args.timeout,
+            broker=args.broker,
+            mqtt_port=args.port,
+            topic_prefix=args.topic_prefix
         )
     elif args.command == 'shell':
-        # Extract shell command and its arguments
-        shell_args = []
-        if hasattr(args, 'command') and isinstance(args.command, list) and len(args.command) > 0:
-            shell_args = args.command
-        
-        # Convert args to sys.argv format for shell_main
-        sys_argv = ['modapi']
-        if args.modbus_port:
-            sys_argv.extend(['--port', args.modbus_port])
-        if args.baudrate:
-            sys_argv.extend(['--baud', str(args.baudrate)])
-        if args.timeout:
-            sys_argv.extend(['--timeout', str(args.timeout)])
-        if hasattr(args, 'interactive') and args.interactive:
-            sys_argv.append('--interactive')
-        if hasattr(args, 'verbose') and args.verbose:
-            sys_argv.append('--verbose')
+        # Run interactive shell
+        interactive_mode(
+            port=args.modbus_port,
+            baudrate=args.baudrate,
+            timeout=args.timeout,
+            verbose=args.verbose
+        )
+    elif args.command == 'cmd':
+        # Execute command directly
+        if not args.args:
+            print("Error: No arguments provided for command")
+            sys.exit(1)
             
-        # Add shell command and arguments
-        if shell_args:
-            sys_argv.append(shell_args[0])  # Command
-            sys_argv.extend(shell_args[1:])  # Arguments
+        success, response = execute_command(
+            command=args.command,
+            args=args.args,
+            port=args.modbus_port,
+            baudrate=args.baudrate,
+            timeout=args.timeout,
+            verbose=args.verbose
+        )
         
-        # Run shell main
-        sys.argv = sys_argv
-        shell_main()
+        # Output response as JSON
+        import json
+        print(json.dumps(response, indent=2))
+        
+        # Exit with appropriate status code
+        sys.exit(0 if success else 1)
+    elif args.command == 'scan':
+        # Scan for Modbus devices
+        port = auto_detect_modbus_port()
+        if port:
+            print(f"Modbus device found: {port}")
+            sys.exit(0)
+        else:
+            print("No Modbus device found")
+            sys.exit(1)
     else:
         # Default to help if no command specified
         parser.print_help()
