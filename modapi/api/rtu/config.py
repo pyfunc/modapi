@@ -130,11 +130,6 @@ def get_baudrates() -> Dict[str, int]:
             # Fallback default baudrates
             _baudrates = {
                 "4800": 0,
-                "9600": 1,
-                "19200": 2,
-                "38400": 3,
-                "57600": 4,
-                "115200": 5
             }
     return _baudrates
 
@@ -177,7 +172,7 @@ def get_config_value(key: str, default: Any = None) -> Any:
 # Get baudrates array
 def get_baudrates_array():
     constants = _load_constants()
-    return constants.get('baudrates', [9600, 115200, 19200, 4800, 38400, 57600])
+    return constants.get('baudrates', [9600, 115200])
 
 BAUDRATES = get_baudrates_array()
 

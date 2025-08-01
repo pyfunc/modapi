@@ -269,9 +269,6 @@ class WaveshareIO8CH(ModbusRTU):
         baudrate_code = {
             4800: 0,
             9600: 1,
-            19200: 2,
-            38400: 3,
-            57600: 4,
             115200: 5
         }.get(baudrate, baudrate)  # Use direct value if not in mapping
         

@@ -40,7 +40,7 @@ def find_serial_ports() -> List[str]:
     logger.info(f"Found {len(available_ports)} serial ports: {available_ports}")
     return available_ports
 
-def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5) -> bool:
+def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5, unit_id: int = 1) -> bool:
     """
     Test if a serial port has a Modbus device connected
     
@@ -48,10 +48,13 @@ def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5) -> b
         port: Serial port path to test
         baudrate: Baud rate to test
         timeout: Timeout in seconds
+        unit_id: Modbus unit ID to test (default: 1)
         
     Returns:
         bool: True if a Modbus device is detected
     """
+    from .protocol import build_read_request, parse_response
+    
     try:
         # Try to open the port
         with serial.Serial(port=port, baudrate=baudrate, timeout=timeout) as ser:
@@ -59,39 +62,57 @@ def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5) -> b
             ser.reset_input_buffer()
             ser.reset_output_buffer()
             
-            # Send a Modbus request to read device ID (unit 1)
-            # This is a standard Modbus request that most devices should respond to
-            request = bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A])
+            # Test 1: Try reading holding registers (function code 0x03)
+            # This is a common operation that most Modbus devices support
+            request = build_read_request(unit_id, 0x03, 0x0000, 1)
             ser.write(request)
             
             # Wait for response
             time.sleep(0.1)
             
-            # Check if we got any response
             if ser.in_waiting > 0:
                 response = ser.read(ser.in_waiting)
-                logger.debug(f"Got response from {port}: {response.hex()}")
+                logger.debug(f"Got response from {port} (FC03): {response.hex()}")
                 
-                # Even if the response is an exception, it means a Modbus device is present
-                if len(response) >= 3 and response[0] == 0x01:
+                # If we got any response, it's likely a Modbus device
+                if len(response) >= 5:  # Minimum valid Modbus RTU response length
                     return True
             
-            # Try a broadcast message to read device address
-            request = bytes([0x00, 0x03, 0x40, 0x00, 0x00, 0x01, 0x90, 0x1B])
+            # Test 2: Try reading coils (function code 0x01)
+            ser.reset_input_buffer()
+            request = build_read_request(unit_id, 0x01, 0x0000, 1)
             ser.write(request)
             
             # Wait for response
-            time.sleep(0.2)
+            time.sleep(0.1)
             
-            # Check if we got any response
             if ser.in_waiting > 0:
                 response = ser.read(ser.in_waiting)
-                logger.debug(f"Got broadcast response from {port}: {response.hex()}")
-                return True
+                logger.debug(f"Got response from {port} (FC01): {response.hex()}")
+                
+                # If we got any response, it's likely a Modbus device
+                if len(response) >= 5:  # Minimum valid Modbus RTU response length
+                    return True
+            
+            # Test 3: Try reading input registers (function code 0x04)
+            ser.reset_input_buffer()
+            request = build_read_request(unit_id, 0x04, 0x0000, 1)
+            ser.write(request)
+            
+            # Wait for response
+            time.sleep(0.1)
+            
+            if ser.in_waiting > 0:
+                response = ser.read(ser.in_waiting)
+                logger.debug(f"Got response from {port} (FC04): {response.hex()}")
+                
+                # If we got any response, it's likely a Modbus device
+                if len(response) >= 5:  # Minimum valid Modbus RTU response length
+                    return True
             
             return False
     except Exception as e:
-        logger.debug(f"Error testing {port}: {e}")
+        logger.debug(f"Error testing {port} at {baudrate} baud: {str(e)}")
         return False
 
 def scan_for_devices(ports: List[str] = None, 
@@ -102,31 +123,35 @@ def scan_for_devices(ports: List[str] = None,
     
     Args:
         ports: List of ports to scan (default: auto-detect)
-        baudrates: List of baudrates to try (default: [9600, 115200, 19200])
-        unit_ids: List of unit IDs to try (default: [1, 2, 3])
+        baudrates: List of baudrates to try (default: from config.BAUDRATES)
+        unit_ids: List of unit IDs to try (default: from config.AUTO_DETECT_UNIT_IDS)
         
     Returns:
         List[Dict[str, Any]]: List of detected devices with configuration
     """
+    from .config import BAUDRATES as DEFAULT_BAUDRATES, AUTO_DETECT_UNIT_IDS
+    
     if ports is None:
         ports = find_serial_ports()
     
     if baudrates is None:
-        baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
+        baudrates = DEFAULT_BAUDRATES
     
     if unit_ids is None:
-        unit_ids = [1, 2, 3]
+        unit_ids = AUTO_DETECT_UNIT_IDS
     
     detected_devices = []
     
     for port in ports:
         for baudrate in baudrates:
-            if test_modbus_port(port, baudrate):
-                device_info = {
-                    'port': port,
-                    'baudrate': baudrate,
-                    'unit_ids': []
-                }
+            for unit_id in unit_ids:
+                if test_modbus_port(port, baudrate, unit_id=unit_id):
+                    device_info = {
+                        'port': port,
+                        'baudrate': baudrate,
+                        'unit_id': unit_id,
+                        'unit_ids': [unit_id]  # For backward compatibility
+                    }
                 
                 # Try to determine unit IDs
                 try:

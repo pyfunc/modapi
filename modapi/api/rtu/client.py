@@ -274,40 +274,79 @@ class ModbusRTUClient(ModbusRTU):
         """
         if ports is None:
             ports = find_serial_ports()
+            
+        # Log detected ports
+        logger.info(f"Auto-detection checking ports: {ports}")
         
         # Use baudrates and unit IDs from config
         baudrates = BAUDRATES
-        unit_ids = AUTO_DETECT_UNIT_IDS + [0]  # Include broadcast address 0
+        # Add more common baudrates if the list is too short
+        if len(baudrates) < 3:
+            baudrates = list(set(baudrates + [9600, 19200, 38400, 57600, 115200]))
+        
+        # Ensure we have a comprehensive list of unit IDs to test
+        unit_ids = list(set(AUTO_DETECT_UNIT_IDS + [0, 1, 2, 3, 4, 5, 10, 15, 16, 247]))  # Include broadcast and common addresses
+        
+        logger.info(f"Auto-detection using baudrates: {baudrates}")
+        logger.info(f"Auto-detection using unit IDs: {unit_ids}")
+        
+        # Prioritize /dev/ttyACM0 if it's in the list
+        if '/dev/ttyACM0' in ports:
+            ports.remove('/dev/ttyACM0')
+            ports.insert(0, '/dev/ttyACM0')  # Put it first
         
         for port in ports:
+            logger.info(f"Testing port: {port}")
             for baudrate in baudrates:
+                logger.info(f"  Testing baudrate: {baudrate}")
                 for unit_id in unit_ids:
                     try:
-                        client = cls(port=port, baudrate=baudrate, timeout=0.5)
+                        client = cls(port=port, baudrate=baudrate, timeout=1.0)  # Increased timeout for reliability
                         if client.connect():
+                            logger.info(f"    Connected to {port} at {baudrate}, testing unit_id={unit_id}")
+                            
                             # Try to read a register to verify connection
-                            response = client.read_holding_registers(0, 1, unit_id)
-                            if response is not None:
-                                logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
-                                return {
-                                    'port': port,
-                                    'baudrate': baudrate,
-                                    'unit_id': unit_id
-                                }
+                            try:
+                                response = client.read_holding_registers(0, 1, unit_id)
+                                if response is not None:
+                                    logger.info(f"✅ Found working configuration: {port}, {baudrate}, unit_id={unit_id} (holding registers)")
+                                    return {
+                                        'port': port,
+                                        'baudrate': baudrate,
+                                        'unit_id': unit_id
+                                    }
+                            except Exception as e:
+                                logger.debug(f"      Error reading holding registers: {e}")
                             
                             # Try reading coils if registers didn't work
-                            response = client.read_coils(0, 8, unit_id)
-                            if response is not None:
-                                logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
-                                return {
-                                    'port': port,
-                                    'baudrate': baudrate,
-                                    'unit_id': unit_id
-                                }
+                            try:
+                                response = client.read_coils(0, 8, unit_id)
+                                if response is not None:
+                                    logger.info(f"✅ Found working configuration: {port}, {baudrate}, unit_id={unit_id} (coils)")
+                                    return {
+                                        'port': port,
+                                        'baudrate': baudrate,
+                                        'unit_id': unit_id
+                                    }
+                            except Exception as e:
+                                logger.debug(f"      Error reading coils: {e}")
+                                
+                            # Try reading input registers
+                            try:
+                                response = client.read_input_registers(0, 1, unit_id)
+                                if response is not None:
+                                    logger.info(f"✅ Found working configuration: {port}, {baudrate}, unit_id={unit_id} (input registers)")
+                                    return {
+                                        'port': port,
+                                        'baudrate': baudrate,
+                                        'unit_id': unit_id
+                                    }
+                            except Exception as e:
+                                logger.debug(f"      Error reading input registers: {e}")
                             
                             client.disconnect()
                     except Exception as e:
-                        logger.debug(f"Error testing {port} at {baudrate} with unit_id={unit_id}: {e}")
+                        logger.debug(f"    Error testing {port} at {baudrate} with unit_id={unit_id}: {e}")
         
-        logger.warning("No working configuration found")
+        logger.warning("❌ No working configuration found")
         return None
