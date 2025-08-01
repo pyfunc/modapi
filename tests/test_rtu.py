@@ -291,7 +291,7 @@ class TestConvenienceFunctions(unittest.TestCase):
         self.assertEqual(client.baudrate, 19200)
         self.assertEqual(client.timeout, 2.0)
     
-    @patch('api.rtu.ModbusRTU')
+    @patch('modapi.api.rtu.ModbusRTU')
     def test_test_rtu_connection(self, mock_rtu_class):
         """Test RTU connection testing function"""
         # Mock RTU client with context manager

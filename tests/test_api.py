@@ -155,7 +155,7 @@ class TestMqttApi(unittest.TestCase):
 class TestCmdApi(unittest.TestCase):
     """Test cases for Command API"""
     
-    @patch('modapi.api.cmd.ModbusClient')
+    @patch('modapi.api.cmd.ModbusRTU')
     def test_execute_command_wc(self, mock_client_class):
         """Test execute_command with write_coil command"""
         # Mock the modbus client
@@ -179,7 +179,7 @@ class TestCmdApi(unittest.TestCase):
         mock_client.write_coil.assert_called_once_with(0, True, unit=1)
         mock_client.disconnect.assert_called_once()
     
-    @patch('modapi.api.cmd.ModbusClient')
+    @patch('modapi.api.cmd.ModbusRTU')
     def test_execute_command_rc(self, mock_client_class):
         """Test execute_command with read_coils command"""
         # Mock the modbus client

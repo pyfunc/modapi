@@ -61,7 +61,7 @@ python -c "from api.rtu import ModbusRTU; client = ModbusRTU(); print('Config:',
 **2. Uruchom serwer web:**
 ```bash
 python run_rtu_output.py
-# Otwórz http://localhost:5002 w przeglądarce
+# Otwórz http://localhost:5005 w przeglądarce
 ```
 
 **3. Przykłady użycia:**
@@ -165,7 +165,7 @@ modapi cmd wh 0 42      # Write value 42 to holding register at address 0
 modapi shell
 
 # REST API server
-modapi rest --host 0.0.0.0 --port 5000
+modapi rest --host 0.0.0.0 --port 5005
 
 # MQTT client
 modapi mqtt --broker localhost --port 1883
@@ -191,7 +191,7 @@ For backward compatibility, you can also use the direct command format:
 from modapi.api.rest import create_rest_app
 
 # Create and run Flask app
-app = create_rest_app(port='/dev/ttyACM0', api_port=5000)
+app = create_rest_app(port='/dev/ttyACM0', api_port=5005)
 ```
 
 ### 🌐 REST API Server
@@ -212,18 +212,18 @@ python run_rtu_output.py
 
 ```bash
 # Sprawdź status
-curl http://localhost:5002/status
+curl http://localhost:5005/status
 
 # Odczytaj cewkę 0
-curl http://localhost:5002/coil/0
+curl http://localhost:5005/coil/0
 
 # Ustaw cewkę 0 na TRUE
-curl -X POST http://localhost:5002/coil/0 \
+curl -X POST http://localhost:5005/coil/0 \
      -H "Content-Type: application/json" \
      -d '{"state": true}'
 
 # Odczytaj wszystkie cewki
-curl http://localhost:5002/coils
+curl http://localhost:5005/coils
 ```
 
 ### 🔧 Zaawansowane użycie

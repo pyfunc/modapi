@@ -197,7 +197,7 @@ def set_coil(address):
 if __name__ == '__main__':
     init_rtu()
     if RTU_CONFIG:
-        app.run(host='0.0.0.0', port=5002, debug=True)
+        app.run(host='0.0.0.0', port=5005, debug=True)
     else:
         print("Nie można uruchomić serwera bez działającej konfiguracji RTU")
 ```

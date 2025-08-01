@@ -7,7 +7,7 @@ Zastępuje run_output.py który nie działał z rzeczywistym sprzętem
 import os
 import logging
 from flask import Flask, jsonify, request, render_template_string
-from api.rtu import ModbusRTU
+from modapi.api.rtu import ModbusRTU
 import time
 
 # Konfiguracja logowania
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     if init_rtu():
         print(f"✅ RTU skonfigurowane: {RTU_CONFIG['port']} @ {RTU_CONFIG['baudrate']} baud")
         print(f"🔧 Unit ID: {RTU_CONFIG['unit_id']}")
-        print("🌐 Serwer dostępny na http://localhost:5002")
+        print("🌐 Serwer dostępny na http://localhost:5005")
         print("📋 API endpoints:")
         print("   GET  /status          - status połączenia")
         print("   GET  /coil/<addr>     - odczyt cewki")
@@ -312,7 +312,7 @@ if __name__ == '__main__':
         # Uruchom serwer Flask
         app.run(
             host='0.0.0.0', 
-            port=5002, 
+            port=5005,
             debug=False,  # Wyłącz debug w produkcji
             use_reloader=False  # Zapobiega podwójnej inicjalizacji
         )
