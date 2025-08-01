@@ -5,6 +5,7 @@ Zastępuje run_output.py który nie działał z rzeczywistym sprzętem
 """
 
 import os
+import sys
 import logging
 from flask import Flask, jsonify, request, render_template_string
 from modapi.api.rtu import ModbusRTU
@@ -121,47 +122,86 @@ HTML_TEMPLATE = """
 # Helper function to auto-detect RTU devices
 def auto_detect(ports):
     """Auto-detect Modbus RTU device on specified ports"""
-    if not ports:
-        return None
-        
-    # Try each port with common baudrates
     baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
-    unit_ids = [1, 2, 3, 0]  # Include broadcast address 0
+    unit_ids = [1, 2, 3, 4]
     
     for port in ports:
         for baudrate in baudrates:
             for unit_id in unit_ids:
                 try:
-                    client = ModbusRTU(port=port, baudrate=baudrate, timeout=0.5)
-                    if client.connect():
-                        # Try to read a register to verify connection
-                        response = client.read_holding_registers(0, 1, unit_id)
-                        if response is not None:
-                            logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
-                            client.disconnect()
-                            return {
-                                'port': port,
-                                'baudrate': baudrate,
-                                'unit_id': unit_id
-                            }
-                        
-                        # Try reading coils if registers didn't work
-                        response = client.read_coils(0, 8, unit_id)
-                        if response is not None:
-                            logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
-                            client.disconnect()
-                            return {
-                                'port': port,
-                                'baudrate': baudrate,
-                                'unit_id': unit_id
-                            }
-                        
+                    client = ModbusRTU(port, baudrate)
+                    logger.info(f"Testing configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
+                    
+                    # Próbuj odczytać rejestry
+                    logger.debug(f"Attempting to read holding registers with unit_id={unit_id}")
+                    response = client.read_holding_registers(0, 1, unit_id)
+                    if response is not None:
+                        logger.info(f"✅ Auto-detect success with holding registers: port={port}, baudrate={baudrate}, unit_id={unit_id}, response={response}")
                         client.disconnect()
+                        return {
+                            'port': port,
+                            'baudrate': baudrate,
+                            'unit_id': unit_id
+                        }
+                    else:
+                        logger.debug(f"No response from holding registers with unit_id={unit_id}")
+                    
+                    # Próbuj odczytać cewki
+                    logger.debug(f"Attempting to read coils with unit_id={unit_id}")
+                    response = client.read_coils(0, 8, unit_id)
+                    if response is not None:
+                        logger.info(f"✅ Auto-detect success with coils: port={port}, baudrate={baudrate}, unit_id={unit_id}, response={response}")
+                        client.disconnect()
+                        return {
+                            'port': port,
+                            'baudrate': baudrate,
+                            'unit_id': unit_id
+                        }
+                    else:
+                        logger.debug(f"No response from coils with unit_id={unit_id}")
+                    
+                    client.disconnect()
                 except Exception as e:
-                    logger.debug(f"Error testing {port} at {baudrate} with unit_id={unit_id}: {e}")
+                    # Log connection errors
+                    logger.debug(f"Error testing {port} at {baudrate} baud with unit_id={unit_id}: {e}")
     
     logger.warning("No working configuration found")
     return None
+
+def init_mock_mode():
+    """Initialize mock mode for testing without hardware"""
+    global RTU_CONFIG
+    print("🔧 Uruchamiam w trybie MOCK (bez rzeczywistego urządzenia)")
+    RTU_CONFIG = {
+        'port': 'MOCK',
+        'baudrate': 9600,
+        'unit_id': 1
+    }
+    logger.info(f"✅ Używam konfiguracji MOCK: {RTU_CONFIG}")
+    
+    # Monkey patch ModbusRTU for mock mode
+    def mock_read_coils(self, unit_id, address, count):
+        logger.info(f"MOCK: Reading {count} coils from address {address} (unit_id={unit_id})")
+        return [False] * count
+        
+    def mock_write_single_coil(self, unit_id, address, value):
+        logger.info(f"MOCK: Writing coil at address {address} to {value} (unit_id={unit_id})")
+        return True
+        
+    def mock_read_holding_registers(self, unit_id, address, count):
+        logger.info(f"MOCK: Reading {count} registers from address {address} (unit_id={unit_id})")
+        return [0] * count
+    
+    ModbusRTU.read_coils = mock_read_coils
+    ModbusRTU.write_single_coil = mock_write_single_coil
+    ModbusRTU.read_holding_registers = mock_read_holding_registers
+    
+    # Override connect and disconnect for mock mode
+    ModbusRTU.connect = lambda self: True
+    ModbusRTU.disconnect = lambda self: None
+    
+    print("✅ Mock RTU device ready")
+    return True
 
 def init_rtu():
     """Inicjalizuj RTU i znajdź działającą konfigurację"""
@@ -183,7 +223,33 @@ def init_rtu():
         manual_client = ModbusRTU('/dev/ttyACM0', 9600)
         
         if manual_client.connect():
-            success, result = manual_client.test_connection(1)
+            # Implement test_connection directly
+            result = {
+                'port': '/dev/ttyACM0',
+                'baudrate': 9600,
+                'unit_id': 1,
+                'success': False,
+                'error': None
+            }
+            
+            try:
+                # Try to read a register to verify connection
+                response = manual_client.read_holding_registers(0, 1, 1)
+                if response is not None:
+                    result['success'] = True
+                else:
+                    result['error'] = "No response from device"
+                    
+                # Try reading coils if registers didn't work
+                if not result['success']:
+                    response = manual_client.read_coils(0, 8, 1)
+                    if response is not None:
+                        result['success'] = True
+                        result['error'] = None
+            except Exception as e:
+                result['error'] = str(e)
+            
+            success = result['success']
             if success:
                 RTU_CONFIG = {
                     'port': '/dev/ttyACM0',
@@ -212,7 +278,33 @@ def status():
     
     # Test połączenia
     with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-        success, result = client.test_connection(RTU_CONFIG['unit_id'])
+        # Implement test_connection directly
+        result = {
+            'port': RTU_CONFIG['port'],
+            'baudrate': RTU_CONFIG['baudrate'],
+            'unit_id': RTU_CONFIG['unit_id'],
+            'success': False,
+            'error': None
+        }
+        
+        try:
+            # Try to read a register to verify connection
+            response = client.read_holding_registers(0, 1, RTU_CONFIG['unit_id'])
+            if response is not None:
+                result['success'] = True
+            else:
+                result['error'] = "No response from device"
+                
+            # Try reading coils if registers didn't work
+            if not result['success']:
+                response = client.read_coils(0, 8, RTU_CONFIG['unit_id'])
+                if response is not None:
+                    result['success'] = True
+                    result['error'] = None
+        except Exception as e:
+            result['error'] = str(e)
+        
+        success = result['success']
         
         return jsonify({
             'connected': success,
@@ -340,31 +432,30 @@ if __name__ == '__main__':
     print("🚀 RTU Output Server - Zastępuje problematyczny run_output.py")
     print("📡 Używa bezpośredniej komunikacji RTU zamiast PyModbus")
     
-    # Inicjalizuj RTU
-    if init_rtu():
-        print(f"✅ RTU skonfigurowane: {RTU_CONFIG['port']} @ {RTU_CONFIG['baudrate']} baud")
-        print(f"🔧 Unit ID: {RTU_CONFIG['unit_id']}")
-        print("🌐 Serwer dostępny na http://localhost:5005")
-        print("📋 API endpoints:")
-        print("   GET  /status          - status połączenia")
-        print("   GET  /coil/<addr>     - odczyt cewki")
-        print("   POST /coil/<addr>     - zapis cewki")
-        print("   GET  /coils           - odczyt wszystkich cewek")
-        print("   GET  /registers/<addr> - odczyt rejestru")
-        print()
-        
-        # Uruchom serwer Flask
-        app.run(
-            host='0.0.0.0', 
-            port=5005,
-            debug=False,  # Wyłącz debug w produkcji
-            use_reloader=False  # Zapobiega podwójnej inicjalizacji
-        )
+    # Import sys if not already imported
+    import sys
+    
+    # Check for mock mode
+    mock_mode = "--mock" in sys.argv
+    
+    if mock_mode:
+        print("🧪 Wykryto flagę --mock, uruchamiam w trybie testowym bez sprzętu")
+        init_success = init_mock_mode()
     else:
+        # Inicjalizacja RTU
+        print("🔌 Uruchamiam w trybie normalnym, szukam podłączonego sprzętu RTU")
+        init_success = init_rtu()
+        
+    if not init_success:
         print("❌ Nie można uruchomić serwera bez działającej konfiguracji RTU")
         print("🔍 Sprawdź:")
         print("   - Czy urządzenie jest podłączone do /dev/ttyACM0 lub /dev/ttyUSB0")
-        print("   - Czy urządzenie jest włączone") 
+        print("   - Czy urządzenie jest włączone")
         print("   - Czy masz uprawnienia do portu szeregowego")
         print("   - Czy nie używa niestandardowej prędkości lub unit ID")
-        exit(1)
+        print("\n💡 Możesz uruchomić w trybie MOCK dla testów: python run_rtu_output.py --mock")
+        sys.exit(1)
+    
+    # Uruchom serwer
+    print(f"✅ Uruchamiam serwer na http://localhost:5005/")
+    app.run(host='0.0.0.0', port=5005, debug=False, use_reloader=False)
