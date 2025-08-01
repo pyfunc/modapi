@@ -19,9 +19,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env files
+
 def load_env_files():
-    """Load environment variables from .env files in project directories"""
+    """Load environment variables from .env files in project directories."""
     # Try to load from current directory
     if load_dotenv(dotenv_path='.env'):
         logger.debug('Loaded .env from current directory')
@@ -36,12 +36,26 @@ def load_env_files():
     if hyper_env.exists() and load_dotenv(dotenv_path=hyper_env):
         logger.debug(f'Loaded .env from {hyper_env}')
 
+
 # Load environment variables
 load_env_files()
 
 # Import components after environment is configured
-from .client import ModbusClient
-from .api import create_rest_app, start_mqtt_broker
-from .shell import main as shell_main
+from modapi.client import ModbusClient  # noqa: E402
+from modapi.api import create_rest_app  # noqa: E402
+from modapi.shell import main as shell_main  # noqa: E402
 
-__all__ = ['ModbusClient', 'create_rest_app', 'start_mqtt_broker', 'shell_main', 'load_env_files']
+
+def start_mqtt_broker(*args, **kwargs):
+    """Stub for MQTT broker (not implemented in this version)."""
+    logger.warning("MQTT broker is not implemented in this version")
+    return None
+
+
+__all__ = [
+    'ModbusClient',
+    'create_rest_app',
+    'start_mqtt_broker',
+    'shell_main',
+    'load_env_files'
+]
