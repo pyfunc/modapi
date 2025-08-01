@@ -52,156 +52,16 @@ MOCK_CONFIG = CONSTANTS.get('mock', {
 # Pobierz konfigurację serwera
 SERVER_PORT = int(get_config_value('SERVER_PORT', 5007))
 
-# HTML template dla interfejsu web
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>RTU Output Controller</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .coil { margin: 10px; padding: 10px; border: 1px solid #ccc; }
-        .coil.on { background-color: #90EE90; }
-        .coil.off { background-color: #FFB6C1; }
-        button { padding: 5px 10px; margin: 5px; }
-        .status { margin: 20px 0; padding: 10px; background: #f0f0f0; }
-    </style>
-</head>
-<body>
-    <h1>RTU Output Controller</h1>
-    <div class="status">
-        <h3>Status połączenia:</h3>
-        <p>Port: {{ config.port if config else 'Nie skonfigurowany' }}</p>
-        <p>Prędkość: {{ config.baudrate if config else 'N/A' }} baud</p>
-        <p>Unit ID: {{ config.unit_id if config else 'N/A' }}</p>
-        <p>Status: {{ 'Połączony' if config else 'Błąd' }}</p>
-    </div>
-    
-    <h3>Sterowanie cewkami (0-7):</h3>
-    <div id="coils">
-        <!-- Cewki będą załadowane przez JavaScript -->
-    </div>
-    
-    <script>
-        // Track the last update time for rate limiting
-        let lastUpdateTime = 0;
-        const MIN_UPDATE_INTERVAL = 500; // 2 requests per second (1000ms / 2 = 500ms)
-        let updateQueue = [];
-        let isProcessingQueue = false;
+# Path to the HTML template file
+HTML_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'examples', 'rtu_controller.html')
 
-        // Process the update queue with rate limiting
-        async function processUpdateQueue() {
-            if (isProcessingQueue || updateQueue.length === 0) return;
-            
-            isProcessingQueue = true;
-            const now = Date.now();
-            const timeSinceLastUpdate = now - lastUpdateTime;
-            
-            // Wait if needed to maintain rate limit
-            if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL) {
-                const delay = MIN_UPDATE_INTERVAL - timeSinceLastUpdate;
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-            
-            // Process the next update in the queue
-            const { coilId, state, error } = updateQueue.shift();
-            await updateCoilDisplay(coilId, state, error);
-            lastUpdateTime = Date.now();
-            
-            // Process next item in queue if any
-            isProcessingQueue = false;
-            if (updateQueue.length > 0) {
-                processUpdateQueue();
-            }
-        }
-
-        // Queue an update to be processed with rate limiting
-        function queueCoilUpdate(coilId, state, error = false) {
-            // Check if this coil already has a pending update
-            const existingIndex = updateQueue.findIndex(item => item.coilId === coilId);
-            if (existingIndex >= 0) {
-                // Replace the existing queued update for this coil
-                updateQueue[existingIndex] = { coilId, state, error };
-            } else {
-                // Add new update to the queue
-                updateQueue.push({ coilId, state, error });
-            }
-            processUpdateQueue();
-        }
-
-        async function loadCoils() {
-            const now = Date.now();
-            // If we've updated recently, skip this load to prevent too many requests
-            if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
-                return;
-            }
-            
-            for (let i = 0; i < 8; i++) {
-                try {
-                    const response = await fetch(`/coil/${i}`);
-                    const data = await response.json();
-                    queueCoilUpdate(i, data.state || false);
-                } catch (error) {
-                    console.error('Błąd odczytu cewki', i, error);
-                    queueCoilUpdate(i, false, true);
-                }
-            }
-        }
-        
-        function updateCoilDisplay(coilId, state, error = false) {
-            const coilsDiv = document.getElementById('coils');
-            let coilDiv = document.getElementById(`coil-${coilId}`);
-            
-            if (!coilDiv) {
-                coilDiv = document.createElement('div');
-                coilDiv.id = `coil-${coilId}`;
-                coilDiv.className = 'coil';
-                coilsDiv.appendChild(coilDiv);
-            }
-            
-            if (error) {
-                coilDiv.innerHTML = `<strong>Cewka ${coilId}:</strong> BŁĄD`;
-                coilDiv.className = 'coil';
-            } else {
-                coilDiv.className = `coil ${state ? 'on' : 'off'}`;
-                coilDiv.innerHTML = `
-                    <strong>Cewka ${coilId}:</strong> ${state ? 'ON' : 'OFF'}
-                    <button onclick="setCoil(${coilId}, true)">ON</button>
-                    <button onclick="setCoil(${coilId}, false)">OFF</button>
-                `;
-            }
-        }
-        
-        async function setCoil(coilId, state) {
-            try {
-                const response = await fetch(`/coil/${coilId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ state: state })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    updateCoilDisplay(coilId, state);
-                } else {
-                    alert(`Błąd ustawiania cewki ${coilId}: ${data.error}`);
-                }
-            } catch (error) {
-                alert(`Błąd komunikacji: ${error}`);
-            }
-        }
-        
-        // Załaduj stany cewek przy starcie
-        loadCoils();
-        
-        // Odświeżaj co 5 sekund
-        setInterval(loadCoils, 5000);
-    </script>
-</body>
-</html>
-"""
+# Load the HTML template from file
+try:
+    with open(HTML_TEMPLATE_PATH, 'r', encoding='utf-8') as f:
+        HTML_TEMPLATE = f.read()
+except Exception as e:
+    logger.error(f"Failed to load HTML template from {HTML_TEMPLATE_PATH}: {e}")
+    raise
 
 
 # Use the auto-detection logic from modapi.__main__ for consistency
@@ -209,7 +69,7 @@ def auto_detect():
     """Auto-detect Modbus RTU device on specified ports using the same logic as modapi scan"""
     # Użyj portów z konfiguracji
     ports = AUTO_DETECT_CONFIG.get('ports', ['/dev/ttyACM0', '/dev/ttyUSB0'])
-    unit_ids = AUTO_DETECT_CONFIG.get('unit_ids', [0, 1, 2, 3, 4, 5, 10, 15, 16, 255])
+    unit_ids = AUTO_DETECT_CONFIG.get('unit_ids', [0, 1])
     
     logger.info(f"Scanning ports from config: {ports}")
     logger.info(f"Using unit IDs: {unit_ids}")
@@ -519,7 +379,11 @@ def init_rtu():
 @app.route('/')
 def index():
     """Główna strona z interfejsem sterowania"""
-    return render_template_string(HTML_TEMPLATE, config=RTU_CONFIG)
+    try:
+        return render_template_string(HTML_TEMPLATE, config=RTU_CONFIG)
+    except Exception as e:
+        logger.error(f"Error rendering template: {e}")
+        return f"Error loading template: {e}", 500
 
 
 @app.route('/status')
@@ -645,21 +509,49 @@ def get_all_coils():
     try:
         unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
         logger.debug(f"Reading all coils with unit_id={unit_id}")
-        with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-            coils = client.read_coils(unit_id, 0, 16)
-            if coils and len(coils) > 0:  # Check if list is not empty
-                return jsonify({
-                    'coils': coils,
-                    'count': len(coils),
-                    'unit_id': unit_id,
-                    'timestamp': time.time()
-                })
-            else:
-                return jsonify({'error': f'Failed to read coils or no response from device (unit_id={unit_id})'}), 500
-                
+        
+        # Initialize all coils to False by default
+        all_coils = [False] * 16
+        success = False
+        
+        try:
+            # First try to read all coils at once
+            with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
+                coils = client.read_coils(unit_id, 0, 16)
+                if coils and len(coils) > 0:
+                    # Update the states of the coils we successfully read
+                    for i in range(min(len(coils), 16)):
+                        all_coils[i] = bool(coils[i])
+                    success = True
+        except Exception as e:
+            logger.warning(f"Błąd odczytu wszystkich cewek naraz: {e}")
+            
+        # If reading all coils at once failed, try reading them one by one
+        if not success:
+            with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
+                for i in range(16):
+                    try:
+                        coil = client.read_coils(unit_id, i, 1)
+                        if coil and len(coil) > 0:
+                            all_coils[i] = bool(coil[0])
+                    except Exception as e:
+                        logger.warning(f"Błąd odczytu cewki {i}: {e}")
+                        all_coils[i] = False
+        
+        return jsonify({
+            'coils': all_coils,
+            'count': len(all_coils),
+            'unit_id': unit_id,
+            'timestamp': time.time(),
+            'success': True
+        })
+            
     except Exception as e:
-        logger.error(f"Błąd odczytu cewek: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Krytyczny błąd odczytu cewek: {e}")
+        return jsonify({
+            'error': f'Failed to read coils: {str(e)}',
+            'success': False
+        }), 500
 
 
 @app.route('/registers/<int:address>')
@@ -734,9 +626,7 @@ def toggle_coil_0():
 
 
 if __name__ == '__main__':
-    print("🚀 RTU Output Server - Zastępuje problematyczny run_output.py")
-    print("📡 Używa bezpośredniej komunikacji RTU zamiast PyModbus")
-    
+
     # Import sys if not already imported
     import sys
     

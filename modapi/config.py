@@ -126,18 +126,18 @@ def get_config_value(key: str, default: Any = None) -> Any:
 def get_baudrates_array():
     """Get list of supported baudrates"""
     constants = _load_constants()
-    return constants.get('baudrates', [9600])
+    return constants.get('baudrates', [BAUDRATE_MIN])
 
 def get_prioritized_baudrates():
     """Get prioritized baudrates for auto-detection"""
     constants = _load_constants()
-    return constants.get('prioritized_baudrates', [9600])
+    return constants.get('prioritized_baudrates', [BAUDRATE_MIN])
 
 def get_highest_prioritized_baudrate():
     """Get the highest baudrate from the prioritized baudrates"""
     prioritized = get_prioritized_baudrates()
     if not prioritized:
-        return 19200  # Default if no prioritized baudrates
+        return BAUDRATE_MIN  # Default if no prioritized baudrates
     return max(prioritized)
 
 def get_default_settings():
@@ -145,10 +145,10 @@ def get_default_settings():
     constants = _load_constants()
     return constants.get('default_settings', {
         "port": "/dev/ttyACM0",
-        "baudrate": 19200,
+        "baudrate": BAUDRATE_MIN,
         "timeout": 1.0,
         "unit_id": 1,
-        "rs485_delay": 0.2
+        "rs485_delay": 0.1
     })
 
 def get_auto_detect_settings():
@@ -165,7 +165,7 @@ def get_mock_settings():
     constants = _load_constants()
     return constants.get('mock_settings', {
         "port": "mock",
-        "baudrate": 19200,
+        "baudrate": BAUDRATE_MIN,
         "unit_id": 1,
         "enabled": False
     })
@@ -207,6 +207,7 @@ REGISTER_TYPES = {
 
 # Baudrate settings
 _baudrates = None
+BAUDRATE_MIN = 19200
 BAUDRATES = get_baudrates_array()
 PRIORITIZED_BAUDRATES = get_prioritized_baudrates()
 HIGHEST_PRIORITIZED_BAUDRATE = get_highest_prioritized_baudrate()
@@ -217,7 +218,7 @@ DEFAULT_PORT = DEFAULT_SETTINGS.get("port", '/dev/ttyACM0')
 DEFAULT_BAUDRATE = HIGHEST_PRIORITIZED_BAUDRATE
 DEFAULT_TIMEOUT = DEFAULT_SETTINGS.get("timeout", 1.0)
 DEFAULT_UNIT_ID = DEFAULT_SETTINGS.get("unit_id", 1)
-DEFAULT_RS485_DELAY = DEFAULT_SETTINGS.get("rs485_delay", 0.5)
+DEFAULT_RS485_DELAY = DEFAULT_SETTINGS.get("rs485_delay", 0.1)
 
 # Auto-detect settings
 AUTO_DETECT = get_auto_detect_settings()

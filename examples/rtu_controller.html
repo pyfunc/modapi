@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RTU Output Controller</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .coil { margin: 10px; padding: 10px; border: 1px solid #ccc; }
+        .coil.on { background-color: #90EE90; }
+        .coil.off { background-color: #FFB6C1; }
+        button { padding: 5px 10px; margin: 5px; }
+        .status { margin: 20px 0; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>RTU Output Controller</h1>
+    <div class="status">
+        <h3>Status połączenia:</h3>
+        <p>Port: {{ config.port if config else 'Nie skonfigurowany' }}</p>
+        <p>Prędkość: {{ config.baudrate if config else 'N/A' }} baud</p>
+        <p>Unit ID: {{ config.unit_id if config else 'N/A' }}</p>
+        <p>Status: {{ 'Połączony' if config else 'Błąd' }}</p>
+    </div>
+    
+    <h3>Sterowanie cewkami (0-7):</h3>
+    <div id="coils">
+        <!-- Cewki będą załadowane przez JavaScript -->
+    </div>
+    
+    <script>
+        // Track the last update time for rate limiting
+        let lastUpdateTime = 0;
+        const MIN_UPDATE_INTERVAL = 500; // 2 requests per second (1000ms / 2 = 500ms)
+        let updateQueue = [];
+        let isProcessingQueue = false;
+
+        // Process the update queue with rate limiting
+        async function processUpdateQueue() {
+            if (isProcessingQueue || updateQueue.length === 0) return;
+            
+            isProcessingQueue = true;
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastUpdateTime;
+            
+            // Wait if needed to maintain rate limit
+            if (timeSinceLastUpdate < MIN_UPDATE_INTERVAL) {
+                const delay = MIN_UPDATE_INTERVAL - timeSinceLastUpdate;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
+            // Process the next update in the queue
+            const { coilId, state, error } = updateQueue.shift();
+            await updateCoilDisplay(coilId, state, error);
+            lastUpdateTime = Date.now();
+            
+            // Process next item in queue if any
+            isProcessingQueue = false;
+            if (updateQueue.length > 0) {
+                processUpdateQueue();
+            }
+        }
+
+        // Queue an update to be processed with rate limiting
+        function queueCoilUpdate(coilId, state, error = false) {
+            // Check if this coil already has a pending update
+            const existingIndex = updateQueue.findIndex(item => item.coilId === coilId);
+            if (existingIndex >= 0) {
+                // Replace the existing queued update for this coil
+                updateQueue[existingIndex] = { coilId, state, error };
+            } else {
+                // Add new update to the queue
+                updateQueue.push({ coilId, state, error });
+            }
+            processUpdateQueue();
+        }
+
+        async function loadCoils() {
+            const now = Date.now();
+            // If we've updated recently, skip this load to prevent too many requests
+            if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+                return;
+            }
+            
+            try {
+                // First try to get all coils at once
+                const response = await fetch('/coils');
+                const data = await response.json();
+                
+                if (data && data.coils && Array.isArray(data.coils)) {
+                    // Update all coils from the response
+                    data.coils.forEach((state, index) => {
+                        queueCoilUpdate(index, !!state);
+                    });
+                } else {
+                    // Fallback to individual coil reads if /coils endpoint fails
+                    console.warn('Could not read all coils at once, falling back to individual reads');
+                    for (let i = 0; i < 8; i++) {
+                        try {
+                            const coilResponse = await fetch(`/coil/${i}`);
+                            const coilData = await coilResponse.json();
+                            queueCoilUpdate(i, !!coilData.state);
+                        } catch (error) {
+                            console.error('Błąd odczytu cewki', i, error);
+                            queueCoilUpdate(i, false, true);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Błąd odczytu cewek:', error);
+                // If /coils fails, try individual reads as fallback
+                for (let i = 0; i < 8; i++) {
+                    queueCoilUpdate(i, false, true);
+                }
+            }
+        }
+        
+        function updateCoilDisplay(coilId, state, error = false) {
+            const coilsDiv = document.getElementById('coils');
+            let coilDiv = document.getElementById(`coil-${coilId}`);
+            
+            if (!coilDiv) {
+                coilDiv = document.createElement('div');
+                coilDiv.id = `coil-${coilId}`;
+                coilDiv.className = 'coil';
+                coilsDiv.appendChild(coilDiv);
+            }
+            
+            if (error) {
+                coilDiv.innerHTML = `<strong>Cewka ${coilId}:</strong> BŁĄD`;
+                coilDiv.className = 'coil';
+            } else {
+                coilDiv.className = `coil ${state ? 'on' : 'off'}`;
+                coilDiv.innerHTML = `
+                    <strong>Cewka ${coilId}:</strong> ${state ? 'ON' : 'OFF'}
+                    <button onclick="setCoil(${coilId}, true)">ON</button>
+                    <button onclick="setCoil(${coilId}, false)">OFF</button>
+                `;
+            }
+        }
+        
+        async function setCoil(coilId, state) {
+            try {
+                const response = await fetch(`/coil/${coilId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ state: state })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateCoilDisplay(coilId, state);
+                } else {
+                    alert(`Błąd ustawiania cewki ${coilId}: ${data.error}`);
+                }
+            } catch (error) {
+                alert(`Błąd komunikacji: ${error}`);
+            }
+        }
+        
+        // Załaduj stany cewek przy starcie
+        loadCoils();
+        
+        // Odświeżaj co 1 sekundę (1000ms)
+        setInterval(loadCoils, 1000);
+    </script>
+</body>
+</html>

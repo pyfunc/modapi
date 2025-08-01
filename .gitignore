@@ -6,7 +6,7 @@ poetry.lock
 .vscode/*
 .db
 .db-wal
-
+.coverage
 *.sqlite
 *.sqlite-wal
 *.db-shm

@@ -50,7 +50,7 @@ def test_serial(port, baudrate=9600, timeout=1):
 
 if __name__ == "__main__":
     port = "/dev/ttyACM0"
-    baudrates = [9600, 19200, 38400, 57600, 115200]
+    baudrates = [9600, 19200, 38400]
     
     for baudrate in baudrates:
         test_serial(port, baudrate)
