@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "modapi"
-version = "0.1.7"
+version = "0.1.8"
 description = "Unified API for Modbus communication"
 authors = ["Tom Sapletta <info@softreck.dev>"]
 readme = "README.md"
@@ -8,6 +8,7 @@ packages = [{include = "modapi"}]
 
 [tool.poetry.scripts]
 modapi = "modapi.__main__:main"
+modbus = "modapi.cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"

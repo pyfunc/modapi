@@ -21,24 +21,33 @@ def main():
         print("Próba użycia domyślnego interpretera...")
         python_path = sys.executable
     
-    # Ścieżka do modułu shell.py
-    module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                              "modapi", "shell.py")
+    # Katalog główny projektu (gdzie znajduje się pakiet modapi)
+    project_root = os.path.dirname(os.path.abspath(__file__))
     
-    # Sprawdź, czy moduł istnieje
-    if not os.path.exists(module_path):
-        print(f"Moduł {module_path} nie istnieje.")
+    # Ścieżka do skryptu CLI w katalogu scripts
+    script_path = os.path.join(project_root, "scripts", "modapi")
+    
+    # Sprawdź, czy skrypt istnieje
+    if not os.path.exists(script_path):
+        print(f"Skrypt {script_path} nie istnieje.")
         sys.exit(1)
     
     # Przekazanie argumentów do skryptu
     args = sys.argv[1:] if len(sys.argv) > 1 else []
     
-    # Uruchomienie skryptu z odpowiednim interpreterem
-    cmd = [python_path, module_path] + args
+    # Uruchomienie skryptu CLI
+    cmd = [python_path, script_path] + args
     print(f"Uruchamianie: {' '.join(cmd)}")
     
+    # Dodanie katalogu projektu do PYTHONPATH
+    env = os.environ.copy()
+    if "PYTHONPATH" in env:
+        env["PYTHONPATH"] = f"{project_root}:{env['PYTHONPATH']}"
+    else:
+        env["PYTHONPATH"] = project_root
+    
     try:
-        result = subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True, env=env)
         sys.exit(result.returncode)
     except subprocess.CalledProcessError as e:
         print(f"Błąd wykonania: {e}")
