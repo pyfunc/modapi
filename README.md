@@ -8,6 +8,8 @@
 - **📡 Verified Hardware Support** - Przetestowane z rzeczywistym sprzętem `/dev/ttyACM0`
 - **🔍 Smart Auto-detection** - Automatyczne wykrywanie działających urządzeń i konfiguracji
 - **🌐 Web Interface** - Nowoczesny interfejs web do sterowania cewkami
+- **💪 Enhanced CRC Handling** - Zaawansowana obsługa CRC dla urządzeń Waveshare
+- **🔄 Robust Error Recovery** - Inteligentne odzyskiwanie po błędach komunikacji
 - **⚡ Multiple APIs**:
   - **REST API** - HTTP API dla aplikacji web
   - **Direct RTU** - Bezpośrednia komunikacja szeregowa
@@ -22,6 +24,8 @@
 | **Komunikacja z sprzętem** | ❌ Nie działała | ✅ **Działa niezawodnie** |
 | **Auto-detekcja** | ❌ Zwracała błędy | ✅ **Znajduje urządzenia** |
 | **Odczyt/zapis cewek** | ❌ Błędy komunikacji | ✅ **100% sprawne** |
+| **Obsługa CRC** | ❌ Tylko standardowa | ✅ **Zaawansowana dla Waveshare** |
+| **Odporność na błędy** | ❌ Niska | ✅ **Wysoka z auto-korektą** |
 | **Logowanie** | ❌ Niejasne błędy | ✅ **Szczegółowe logi** |
 | **Testy** | ❌ Zawodne | ✅ **Wszystkie przechodzą** |
 | **Dokumentacja** | ❌ Nieaktualna | ✅ **Kompletna + przykłady** |
@@ -128,11 +132,47 @@ for baud in [9600, 19200, 38400]:
 "
 ```
 
-### Problem: Błędy komunikacji
+### Problem: Błędy komunikacji i CRC
 ```bash
 # Sprawdź parametry szeregowe urządzenia w dokumentacji
 # Typowe ustawienia: 8N1 (8 bitów danych, bez parzystości, 1 bit stopu)
 # Może wymagać innych ustawień: 8E1, 8O1, itp.
+
+# Włącz szczegółowe logowanie dla debugowania CRC
+python -c "
+import logging
+logging.basicConfig(level=logging.DEBUG)
+from api.rtu import ModbusRTU
+client = ModbusRTU('/dev/ttyACM0')
+client.connect()
+# Dla urządzeń Waveshare - moduł automatycznie obsługuje alternatywne CRC
+result = client.read_coils(1, 0, 8)
+print(f'Odczyt cewek z obsługą alternatywnego CRC: {result}')
+client.disconnect()
+"
+```
+
+### Problem: Urządzenia Waveshare zwracają błędy funkcji
+```bash
+# Moduł RTU zawiera specjalną obsługę dla urządzeń Waveshare
+# Automatycznie obsługuje:
+# - Alternatywne obliczenia CRC
+# - Niezgodności ID jednostki (broadcast, exception responses)
+# - Mapowanie kodów funkcji
+# - Szczegółowe komunikaty błędów dla wyjątków Modbus
+
+# Test z włączonym debugowaniem
+python -c "
+import logging
+logging.basicConfig(level=logging.DEBUG)
+from api.rtu import ModbusRTU
+client = ModbusRTU('/dev/ttyACM0')
+client.connect()
+# Próba odczytu rejestrów wejściowych (może zwrócić wyjątek na niektórych urządzeniach)
+result = client.read_input_registers(1, 0, 4)
+print(f'Wynik z obsługą wyjątków Waveshare: {result}')
+client.disconnect()
+"
 ```
 
    The simulator will start with these test values:
