@@ -226,22 +226,36 @@ class TestModbusClient(unittest.TestCase):
         mock_comports.return_value = [mock_port1, mock_port2]
         mock_find_ports.return_value = ['/dev/ttyUSB0', '/dev/ttyACM0']
         
-        # Configure test_modbus_port to only return True for ttyUSB0
-        def test_port_side_effect(port, baudrate=9600, timeout=0.5):
-            return port == '/dev/ttyUSB0'
+        # Configure test_modbus_port to return (True, result_dict) for ttyUSB0
+        def test_port_side_effect(port, baudrate=9600, timeout=0.5, **kwargs):
+            if port == '/dev/ttyUSB0':
+                return True, {
+                    'port': port,
+                    'baudrate': baudrate,
+                    'unit_id': 1,
+                    'function_code': 3,
+                    'address': 0
+                }
+            return False, {'error': 'No device found'}
         
         mock_test_port.side_effect = test_port_side_effect
 
         # Test with default patterns
-        port = auto_detect_modbus_port()
-        self.assertEqual(port, '/dev/ttyUSB0')
+        result = auto_detect_modbus_port()
+        self.assertIsNotNone(result)
+        self.assertEqual(result['port'], '/dev/ttyUSB0')
+        self.assertEqual(result['baudrate'], 9600)
+        self.assertEqual(result['unit_id'], 1)
         
         # Reset the mock to verify the first call
         mock_test_port.reset_mock()
         
         # Test with custom pattern - this will need to be updated if we add pattern support
-        port = auto_detect_modbus_port()
-        self.assertEqual(port, '/dev/ttyUSB0')
+        result = auto_detect_modbus_port()
+        self.assertIsNotNone(result)
+        self.assertEqual(result['port'], '/dev/ttyUSB0')
+        self.assertEqual(result['baudrate'], 9600)
+        self.assertEqual(result['unit_id'], 1)
         
         # Verify test_modbus_port was called with the expected parameters
         # The first call should be to /dev/ttyUSB0 with baudrate=9600

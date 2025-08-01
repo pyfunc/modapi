@@ -56,58 +56,135 @@ def find_serial_ports() -> List[str]:
     return ports
 
 
-def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5) -> bool:
+def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5, 
+                   unit_id: int = None, debug: bool = False) -> bool:
     """
     Test if a serial port responds to Modbus communication
     
     Args:
         port: Serial port path
         baudrate: Communication speed
-        timeout: Connection timeout
+        timeout: Connection timeout in seconds
+        unit_id: Specific unit ID to test (None to test common ones)
+        debug: Enable detailed debug output
         
     Returns:
-        True if port responds to Modbus, False otherwise
+        Tuple of (success: bool, details: dict) with test results
     """
+    def log(msg, level='debug'):
+        if debug or level == 'info':
+            print(f"[DEBUG] {msg}" if level == 'debug' else f"[INFO] {msg}")
+            
     try:
-        logger.info(f"Testing Modbus on {port} at {baudrate} baud")
+        log(f"Testing Modbus on {port} at {baudrate} baud, timeout={timeout}s", 'info')
         
+        # Configure client with minimal parameters for pymodbus 3.10.0
         client = ModbusSerialClient(
-            method='rtu',
             port=port,
             baudrate=baudrate,
             parity='N',
             stopbits=1,
             bytesize=8,
-            timeout=timeout
+            timeout=timeout,
+            # Set the unit ID (slave ID) for the client
+            unit=unit if unit is not None else 1
         )
         
+        # Test connection
         if not client.connect():
-            logger.debug(f"Failed to connect to {port}")
-            return False
+            log(f"Failed to open serial port {port}", 'info')
+            return False, {"error": "Failed to open serial port", "port": port}
             
-        # Try to read a coil to test communication
-        try:
-            result = client.read_coils(0, 1, unit=1)
-            if not result.isError():
-                logger.info(f"Modbus device found on {port} (unit 1, address 0)")
-                return True
-        except Exception as e:
-            logger.debug(f"Error testing {port}: {e}")
-            
+        log(f"Successfully opened {port}")
+        
+        # Define test parameters
+        test_addresses = [0, 1, 40001]  # Common starting addresses
+        test_units = [unit_id] if unit_id is not None else [1, 2, 255, 0]  # Common unit IDs
+        
+        for unit in test_units:
+            for address in test_addresses:
+                # Test function code 1 (read coils)
+                try:
+                    log(f"Testing FC01 (read coils) - Unit: {unit}, Address: {address}")
+                    result = client.read_coils(address, 1)
+                    if not result.isError():
+                        log(f"✓ Modbus device found (FC01) - Unit: {unit}, Address: {address}", 'info')
+                        client.close()
+                        return True, {
+                            "port": port,
+                            "baudrate": baudrate,
+                            "unit_id": unit,
+                            "function_code": 1,
+                            "address": address
+                        }
+                except Exception as e:
+                    log(f"Error with FC01 (unit {unit}, addr {address}): {str(e)}")
+                
+                # Test function code 3 (read holding registers)
+                try:
+                    log(f"Testing FC03 (read holding regs) - Unit: {unit}, Address: {address}")
+                    result = client.read_holding_registers(address, 1)
+                    if not result.isError():
+                        log(f"✓ Modbus device found (FC03) - Unit: {unit}, Address: {address}", 'info')
+                        client.close()
+                        return True, {
+                            "port": port,
+                            "baudrate": baudrate,
+                            "unit_id": unit,
+                            "function_code": 3,
+                            "address": address
+                        }
+                except Exception as e:
+                    log(f"Error with FC03 (unit {unit}, addr {address}): {str(e)}")
+                
+                # Test function code 4 (read input registers)
+                try:
+                    log(f"Testing FC04 (read input regs) - Unit: {unit}, Address: {address}")
+                    result = client.read_input_registers(address, 1)
+                    if not result.isError():
+                        log(f"✓ Modbus device found (FC04) - Unit: {unit}, Address: {address}", 'info')
+                        client.close()
+                        return True, {
+                            "port": port,
+                            "baudrate": baudrate,
+                            "unit_id": unit,
+                            "function_code": 4,
+                            "address": address
+                        }
+                except Exception as e:
+                    log(f"Error with FC04 (unit {unit}, addr {address}): {str(e)}")
+        
+        # If we get here, no device was found
         client.close()
-        return False
+        log(f"No Modbus device found on {port} after testing all combinations", 'info')
+        return False, {
+            "port": port,
+            "baudrate": baudrate,
+            "error": "No Modbus device found"
+        }
         
     except Exception as e:
-        logger.debug(f"Error connecting to {port}: {e}")
-        return False
+        error_msg = f"Error testing {port}: {str(e)}"
+        log(error_msg, 'info')
+        if 'client' in locals():
+            try:
+                client.close()
+            except:
+                pass
+        return False, {
+            "port": port,
+            "baudrate": baudrate,
+            "error": error_msg
+        }
 
 
-def auto_detect_modbus_port(baudrates: List[int] = None) -> Optional[str]:
+def auto_detect_modbus_port(baudrates: List[int] = None, debug: bool = False, unit_id: int = None) -> Optional[dict]:
     """
     Automatically detect which serial port has a working Modbus device
     
     Args:
         baudrates: List of baud rates to test (default: common rates)
+        debug: Enable debug output
         
     Returns:
         Path to working Modbus port or None if not found
@@ -120,29 +197,46 @@ def auto_detect_modbus_port(baudrates: List[int] = None) -> Optional[str]:
     # Get available ports
     ports = find_serial_ports()
     if not ports:
-        print("No serial ports found!")
+        print("❌ No serial ports found!")
         return None
         
-    print(f"Scanning {len(ports)} serial ports for Modbus devices...")
+    print(f"🔍 Found {len(ports)} serial port(s): {', '.join(ports)}")
+    print(f"🔧 Testing common baud rates: {', '.join(map(str, baudrates))}")
     
-    # Try each port with default baudrate first
+    # Try each port with all baudrates
     for port in ports:
-        print(f"Testing {port}...")
-        if test_modbus_port(port, baudrate=9600):
-            print(f"✓ Modbus device detected on {port} at 9600 baud")
-            return port
-            
-    # If not found, try all baudrates
-    for port in ports:
+        print(f"\n🔌 Testing port: {port}")
+        
         for baudrate in baudrates:
-            if baudrate == 9600:  # Already tested
-                continue
-                
-            if test_modbus_port(port, baudrate=baudrate):
-                print(f"✓ Modbus device detected on {port} at {baudrate} baud")
-                return port
-                
-    print("No Modbus devices found!")
+            if debug:
+                print(f"  ⚙️  Testing {baudrate} baud...")
+            else:
+                print(f"  ⚙️  {baudrate} baud...", end=" ")
+            
+            success, result = test_modbus_port(
+                port=port,
+                baudrate=baudrate,
+                unit_id=unit_id,
+                debug=debug
+            )
+            
+            if success:
+                print(f"✅ Device found! {result}")
+                return result
+            else:
+                if debug:
+                    print(f"❌ Test failed: {result.get('error', 'Unknown error')}")
+                else:
+                    print("❌")
+    
+    print("\n❌ No Modbus devices found on any port with the tested configurations.")
+    print("   Please check the following:")
+    print("   1. Is the device properly connected?")
+    print("   2. Is the device powered on?")
+    print("   3. Are you using the correct cable?")
+    print("   4. Does the device use a non-standard baud rate?")
+    print("   5. Is the device using a different unit ID?")
+    print("\n💡 Tip: Run with --debug for more detailed information")
     return None
 
 

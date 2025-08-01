@@ -67,6 +67,10 @@ def main():
     
     # Scan command
     scan_parser = subparsers.add_parser('scan', help='Scan for Modbus devices')
+    scan_parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    scan_parser.add_argument('--port', help='Specify a specific port to test')
+    scan_parser.add_argument('--baudrate', type=int, help='Specify a specific baud rate to test')
+    scan_parser.add_argument('--unit', type=int, help='Specify a specific unit ID to test')
     
     args = parser.parse_args()
     
@@ -120,34 +124,59 @@ def main():
         # Exit with appropriate status code
         sys.exit(0 if success else 1)
     elif args.command == 'scan':
-        # Scan for Modbus devices
-        # Use find_serial_ports to get all ports and then test each one
-        ports = find_serial_ports()
-        if not ports:
-            print("No serial ports found!")
-            sys.exit(1)
-            
-        print(f"Found {len(ports)} serial ports:")
-        working_ports = []
-        
-        # Try each port with common baudrates
-        baudrates = [9600, 19200, 38400, 57600, 115200]
-        for port in ports:
-            print(f"  - {port}")
-            for baudrate in baudrates:
-                if test_modbus_port(port, baudrate=baudrate):
-                    print(f"    ✓ Modbus device detected at {baudrate} baud")
-                    working_ports.append((port, baudrate))
-                    break
-        
-        if working_ports:
-            print("\nWorking Modbus devices:")
-            for port, baudrate in working_ports:
-                print(f"  - {port} at {baudrate} baud")
-            sys.exit(0)
+        # Configure logging based on debug flag
+        if args.debug:
+            logging.basicConfig(level=logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         else:
-            print("\nNo Modbus devices found on any port")
+            logging.basicConfig(level=logging.INFO)
+            logger.setLevel(logging.INFO)
+            
+        # If a specific port is provided, test just that port
+        if args.port:
+            print(f"🔍 Testing specified port: {args.port}")
+            baudrates = [args.baudrate] if args.baudrate else [9600, 19200, 38400, 57600, 115200]
+            
+            for baudrate in baudrates:
+                print(f"  ⚙️  {baudrate} baud...", end=" ")
+                success, result = test_modbus_port(
+                    port=args.port,
+                    baudrate=baudrate,
+                    unit_id=args.unit,
+                    debug=args.debug
+                )
+                if success:
+                    print("✅ Device found!")
+                    if args.debug:
+                        print(f"    Details: {result}")
+                    sys.exit(0)
+                else:
+                    if args.debug:
+                        print(f"❌ {result.get('error', 'No response')}")
+                    else:
+                        print("❌")
+            
+            print(f"\n❌ No Modbus device found on {args.port}")
             sys.exit(1)
+        else:
+            # Scan all ports
+            result = auto_detect_modbus_port(
+                baudrates=[args.baudrate] if args.baudrate else None,
+                debug=args.debug,
+                unit_id=args.unit
+            )
+            if result:
+                print(f"\n✅ Found Modbus device on {result.get('port')}")
+                if args.debug:
+                    print(f"    Details: {result}")
+                sys.exit(0)
+            else:
+                print("\n❌ No Modbus devices found!")
+                if args.debug:
+                    print("    Make sure the device is properly connected and powered on.")
+                    print("    Try specifying a different baud rate with --baudrate")
+                    print("    or a specific unit ID with --unit")
+                sys.exit(1)
     else:
         parser.print_help()
         sys.exit(1)

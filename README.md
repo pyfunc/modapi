@@ -213,6 +213,34 @@ modapi/
 └── ...
 ```
 
+
+
+## Output Moduł [output.py]
+
+Moduł [output](modapi/output.py:296:4-332:54) odpowiada za wizualizację i przetwarzanie stanów wyjść cyfrowych (cewek) w systemie Modbus. Zapewnia funkcje do parsowania i wyświetlania stanów wyjść w formie interaktywnego widżetu SVG.
+
+
+### [parse_coil_status(text: str) -> Tuple[Optional[int], Optional[bool]]](modapi/output.py:18:0-33:21)
+**Opis**:  
+Parsuje wiadomość o stanie cewki i zwraca jej adres oraz status.
+
+**Parametry**:
+- `text` - Tekst wiadomości (np. 'Coil 0 set to ON' lub 'Coil 5 set to OFF')
+
+**Zwraca**:
+- Krotkę zawierającą:
+  - `address` (int) - Adres cewki
+  - [status](modapi/output.py:18:0-33:21) (bool) - Stan cewki (True = WŁĄCZONA, False = WYŁĄCZONA)
+
+- [(None, None)](modapi/output.py:403:4-405:54) w przypadku błędu parsowania
+
+**Przykład użycia**:
+```python
+address, status = parse_coil_status("Coil 3 set to ON")
+# address = 3, status = True
+
+
+
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
