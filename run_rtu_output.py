@@ -50,7 +50,7 @@ MOCK_CONFIG = CONSTANTS.get('mock', {
 })
 
 # Pobierz konfigurację serwera
-SERVER_PORT = int(get_config_value('SERVER_PORT', 5006))
+SERVER_PORT = int(get_config_value('SERVER_PORT', 5007))
 
 # HTML template dla interfejsu web
 HTML_TEMPLATE = """

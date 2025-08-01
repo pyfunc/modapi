@@ -18,6 +18,7 @@ from modapi.api.cmd import execute_command
 from modapi.api.shell import interactive_mode
 from modapi.rtu import ModbusRTU
 from modapi.api.tcp import ModbusTCP
+from modapi.config import DEFAULT_BAUDRATE, DEFAULT_PORT, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
 
 
 class TestRestApi(unittest.TestCase):
