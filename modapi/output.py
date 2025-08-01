@@ -388,7 +388,7 @@ def create_output_app(port: Optional[str] = None,
         return jsonify({
             'api': {
                 'baseUrl': request.host_url.rstrip('/'),
-                'status': 'active' if modbus_client._connected else 'inactive',
+                'status': 'active' if modbus_client.is_connected() else 'inactive',
                 'port': modbus_client.port,
                 'baudrate': modbus_client.baudrate
             },

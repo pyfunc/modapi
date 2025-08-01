@@ -6,10 +6,14 @@ import os
 import sys
 import argparse
 import logging
+import json
 
 from . import load_env_files
-from .api import create_rest_app, start_mqtt_broker, interactive_mode, execute_command
-from .client import auto_detect_modbus_port
+from .api.rest import create_rest_app
+from .api.mqtt import start_mqtt_broker
+from .api.shell import interactive_mode
+from .api.cmd import execute_command
+from .client import auto_detect_modbus_port, find_serial_ports, test_modbus_port
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -58,7 +62,7 @@ def main():
     cmd_parser.add_argument('--baudrate', type=int, help='Baud rate')
     cmd_parser.add_argument('--timeout', type=float, help='Timeout in seconds')
     cmd_parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
-    cmd_parser.add_argument('command', help='Command: wc (write coil), rc (read coil), etc.')
+    cmd_parser.add_argument('modbus_command', help='Command: wc (write coil), rc (read coil), etc.')
     cmd_parser.add_argument('args', nargs='*', help='Command arguments')
     
     # Scan command
@@ -96,14 +100,13 @@ def main():
         )
     elif args.command == 'cmd':
         # Execute command directly
-        if not args.args:
-            print("Error: No arguments provided for command")
+        if not hasattr(args, 'modbus_command') or not args.modbus_command:
+            print("Error: No Modbus command provided")
             sys.exit(1)
             
-        # For cmd subcommand, we need to use the nested 'command' argument 
-        # as the actual modbus command (wc, rc, etc.)
+        # Pass the modbus_command and args to execute_command
         success, response = execute_command(
-            command=args.command,
+            command=args.modbus_command,
             args=args.args,
             port=args.modbus_port,
             baudrate=args.baudrate,
@@ -112,23 +115,43 @@ def main():
         )
         
         # Output response as JSON
-        import json
         print(json.dumps(response, indent=2))
         
         # Exit with appropriate status code
         sys.exit(0 if success else 1)
     elif args.command == 'scan':
         # Scan for Modbus devices
-        port = auto_detect_modbus_port()
-        if port:
-            print(f"Modbus device found: {port}")
+        # Use find_serial_ports to get all ports and then test each one
+        ports = find_serial_ports()
+        if not ports:
+            print("No serial ports found!")
+            sys.exit(1)
+            
+        print(f"Found {len(ports)} serial ports:")
+        working_ports = []
+        
+        # Try each port with common baudrates
+        baudrates = [9600, 19200, 38400, 57600, 115200]
+        for port in ports:
+            print(f"  - {port}")
+            for baudrate in baudrates:
+                if test_modbus_port(port, baudrate=baudrate):
+                    print(f"    ✓ Modbus device detected at {baudrate} baud")
+                    working_ports.append((port, baudrate))
+                    break
+        
+        if working_ports:
+            print("\nWorking Modbus devices:")
+            for port, baudrate in working_ports:
+                print(f"  - {port} at {baudrate} baud")
             sys.exit(0)
         else:
-            print("No Modbus device found")
+            print("\nNo Modbus devices found on any port")
             sys.exit(1)
     else:
-        # Default to help if no command specified
         parser.print_help()
+        sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

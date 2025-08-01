@@ -69,6 +69,40 @@ This project uses [Poetry](https://python-poetry.org/) for dependency management
   poetry publish --build
   ```
 
+## Modbus Simulator
+
+For testing without physical hardware, a Modbus RTU simulator is included. This creates a virtual Modbus device that responds to read/write requests.
+
+### Setting Up the Simulator
+
+1. First, install the required dependencies:
+   ```bash
+   poetry add "pymodbus[repl,serial]"
+   ```
+
+2. Create virtual serial ports (in a separate terminal):
+   ```bash
+   socat -d -d pty,raw,echo=0,link=/tmp/ptyp0 pty,raw,echo=0,link=/tmp/ttyp0
+   ```
+
+3. In another terminal, start the simulator:
+   ```bash
+   poetry run python simulate_modbus.py
+   ```
+
+   The simulator will start with these test values:
+   - Coils 0-3: `[1, 0, 1, 0]`
+   - Holding Registers 0-2: `[1234, 5678, 9012]`
+
+4. Configure your `.env` file to use the virtual port:
+   ```ini
+   MODBUS_PORT=/tmp/ttyp0
+   MODBUS_BAUDRATE=9600
+   MODBUS_TIMEOUT=0.1
+   ```
+
+5. You can now run the API server or CLI commands to interact with the simulator.
+
 ## Usage
 
 ### Command Line Interface

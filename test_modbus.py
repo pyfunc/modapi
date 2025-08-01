@@ -2,12 +2,14 @@
 """
 Test script for Modbus API with simulator
 """
-import time
+import os
 import subprocess
-import requests
-import signal
 import sys
-from pathlib import Path
+import time
+
+import requests
+
+
 
 # Configuration
 MODBUS_PORT = "/tmp/ptyp0"
@@ -23,12 +25,15 @@ def start_simulator():
     )
 
 def start_api_server():
-    """Start the API server in a subprocess"""
-    print("Starting API server...")
+    """Start the API server in a subprocess with the correct Modbus port"""
+    print(f"Starting API server with MODBUS_PORT={MODBUS_PORT}...")
+    env = os.environ.copy()
+    env['MODBUS_PORT'] = MODBUS_PORT
     return subprocess.Popen(
-        ["python", "-m", "modapi.api"],
+        ["python", "-m", "modapi", "rest", "--port", "5000"],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        env=env
     )
 
 def wait_for_server(url, timeout=10):
