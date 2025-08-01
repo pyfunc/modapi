@@ -38,10 +38,19 @@ class ModbusRTUClient(ModbusRTU):
     while handling Waveshare-specific quirks internally.
     """
     
-    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, timeout: float = 1.0):
-        """Initialize Modbus RTU client"""
-        super().__init__(port=port, baudrate=baudrate, timeout=timeout)
-        logger.info(f"Initialized Modbus RTU client on {port} at {baudrate} baud")
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, 
+                 timeout: float = 1.0, rs485_delay: float = 0.2):
+        """
+        Initialize Modbus RTU client
+        
+        Args:
+            port: Serial port path (default: /dev/ttyACM0)
+            baudrate: Baud rate (default: 57600)
+            timeout: Read timeout in seconds (default: 1.0)
+            rs485_delay: Delay between RS485 operations in seconds (default: 0.2)
+        """
+        super().__init__(port=port, baudrate=baudrate, timeout=timeout, rs485_delay=rs485_delay)
+        logger.info(f"Initialized Modbus RTU client on {port} at {baudrate} baud with RS485 delay {rs485_delay}s")
     
     def read_coils(self, address: int, count: int, unit_id: int = 1) -> Optional[List[bool]]:
         """

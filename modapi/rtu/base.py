@@ -30,7 +30,7 @@ from modapi.config import (
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
     FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
-    BAUDRATES, PRIORITIZED_BAUDRATES
+    BAUDRATES, PRIORITIZED_BAUDRATES, DEFAULT_RS485_DELAY
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,7 @@ class ModbusRTU:
         self.parity = parity
         self.stopbits = stopbits
         self.bytesize = bytesize
+        self.rs485_delay = rs485_delay  # Store RS485 delay
         
         self.serial_conn = None
         self.lock = Lock()
@@ -273,6 +274,23 @@ class ModbusRTU:
         import os.path
         return port is not None and len(port) > 0 and os.path.exists(port)
         
+    def _enforce_rs485_delay(self):
+        """Enforce delay between RS485 operations if needed"""
+        if self.rs485_delay <= 0:
+            return
+            
+        current_time = time.time()
+        time_since_last_op = current_time - self._last_operation_time
+        
+        if time_since_last_op < self.rs485_delay:
+            delay_needed = self.rs485_delay - time_since_last_op
+            if delay_needed > 0:
+                self.device_logger.debug(f"Enforcing RS485 delay of {delay_needed:.3f}s between operations")
+                time.sleep(delay_needed)
+                
+        # Update last operation time
+        self._last_operation_time = time.time()
+        
     # High-level API methods for compatibility
     def read_coils(self, unit_id: int, address: int, count: int) -> Optional[List[bool]]:
         """Read coil states"""
@@ -408,6 +426,9 @@ class ModbusRTU:
             
         with self.lock:
             try:
+                # Enforce RS485 delay before sending request
+                self._enforce_rs485_delay()
+                
                 # Record start time for performance tracking
                 start_time = time.time()
                 
