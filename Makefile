@@ -69,6 +69,7 @@ bump-major:
 
 # Zbudowanie paczki do dystrybucji
 build: clean
+	pip install -e .
 	poetry build
 
 # Sprawdzenie czy wersja jest gotowa do publikacji
