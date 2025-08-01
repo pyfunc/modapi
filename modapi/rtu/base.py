@@ -53,7 +53,7 @@ class ModbusRTU:
                  bytesize: int = 8,
                  enable_state_tracking: bool = True,
                  log_directory: str = None,
-                 rs485_delay: float = 0.2):  # Delay between RS485 operations in seconds
+                 rs485_delay: float = DEFAULT_RS485_DELAY):  # Delay between RS485 operations in seconds
         """
         Initialize RTU Modbus connection
         
@@ -66,6 +66,7 @@ class ModbusRTU:
             bytesize: Data bits (5-8)
             enable_state_tracking: Whether to track device state
             log_directory: Directory for detailed logs and device state dumps
+            rs485_delay: Delay between RS485 operations in seconds (default: from config.DEFAULT_RS485_DELAY)
         """
         self.port = port
         

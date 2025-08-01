@@ -104,7 +104,7 @@ DEFAULT_PORT = DEFAULT_SETTINGS.get("port", '/dev/ttyACM0')
 DEFAULT_BAUDRATE = DEFAULT_SETTINGS.get("baudrate", 19200)  # Updated default baudrate
 DEFAULT_TIMEOUT = DEFAULT_SETTINGS.get("timeout", 1.0)
 DEFAULT_UNIT_ID = DEFAULT_SETTINGS.get("unit_id", 1)
-DEFAULT_RS485_DELAY = DEFAULT_SETTINGS.get("rs485_delay", 0.2)  # Default delay between RS485 operations in seconds
+DEFAULT_RS485_DELAY = DEFAULT_SETTINGS.get("rs485_delay", 0.3)  # Default delay between RS485 operations in seconds
 
 # Baudrate mapping
 _baudrates = None
