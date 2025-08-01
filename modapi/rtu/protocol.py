@@ -9,7 +9,7 @@ import sys
 from typing import Optional, List, Dict, Tuple
 
 from .crc import calculate_crc, try_alternative_crcs
-from .config import (
+from modapi.config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,

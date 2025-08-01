@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional, Union, Tuple
 
-from modapi.api.rtu import ModbusRTU, test_rtu_connection
+from modapi.rtu import ModbusRTU, test_rtu_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)

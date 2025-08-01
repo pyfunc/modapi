@@ -72,7 +72,7 @@ def create_rest_app(port: Optional[str] = None,
     # Store connection parameters for later use
     modbus_params = {
         'port': port,
-        'baudrate': baudrate or 9600,
+        'baudrate': baudrate or 57600,
         'timeout': timeout or 1.0
     }
     

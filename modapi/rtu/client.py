@@ -8,7 +8,7 @@ import time
 from typing import List, Optional, Dict, Any, Tuple, Union
 
 from .base import ModbusRTU
-from .config import BAUDRATES, AUTO_DETECT_UNIT_IDS
+from modapi.config import BAUDRATES, AUTO_DETECT_UNIT_IDS
 from .protocol import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
@@ -31,7 +31,7 @@ class ModbusRTUClient(ModbusRTU):
     while handling Waveshare-specific quirks internally.
     """
     
-    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 9600, timeout: float = 1.0):
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, timeout: float = 1.0):
         """Initialize Modbus RTU client"""
         super().__init__(port=port, baudrate=baudrate, timeout=timeout)
         logger.info(f"Initialized Modbus RTU client on {port} at {baudrate} baud")
@@ -282,7 +282,7 @@ class ModbusRTUClient(ModbusRTU):
         baudrates = BAUDRATES
         # Add more common baudrates if the list is too short
         if len(baudrates) < 3:
-            baudrates = list(set(baudrates + [9600, 19200, 38400, 57600, 115200]))
+            baudrates = list(set(baudrates + [57600, 19200, 38400, 57600, 115200]))
         
         # Ensure we have a comprehensive list of unit IDs to test
         unit_ids = list(set(AUTO_DETECT_UNIT_IDS + [0, 1, 2, 3, 4, 5, 10, 15, 16, 247]))  # Include broadcast and common addresses

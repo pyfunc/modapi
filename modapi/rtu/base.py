@@ -17,7 +17,7 @@ from .protocol import (
     build_read_request, build_write_single_coil_request, build_write_single_register_request,
     build_write_multiple_coils_request, build_write_multiple_registers_request
 )
-from .config import (
+from modapi.config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
@@ -34,7 +34,7 @@ class ModbusRTU:
     
     def __init__(self,
                  port: str = '/dev/ttyACM0',
-                 baudrate: int = 9600,
+                 baudrate: int = 57600,
                  timeout: float = 1.0,
                  parity: str = 'N',
                  stopbits: int = 1,
@@ -44,7 +44,7 @@ class ModbusRTU:
         
         Args:
             port: Serial port path (default: /dev/ttyACM0)
-            baudrate: Baud rate (default: 9600)
+            baudrate: Baud rate (default: 57600)
             timeout: Read timeout in seconds
             parity: Parity setting (N/E/O)
             stopbits: Stop bits (1 or 2)

@@ -93,14 +93,14 @@ def get_default_settings():
     constants = _load_constants()
     return constants.get('default_settings', {
         "port": "/dev/ttyACM0",
-        "baudrate": 9600,
+        "baudrate": 57600,  # Updated default baudrate
         "timeout": 1.0,
         "unit_id": 1
     })
 
 DEFAULT_SETTINGS = get_default_settings()
 DEFAULT_PORT = DEFAULT_SETTINGS.get("port", '/dev/ttyACM0')
-DEFAULT_BAUDRATE = DEFAULT_SETTINGS.get("baudrate", 9600)
+DEFAULT_BAUDRATE = DEFAULT_SETTINGS.get("baudrate", 57600)  # Updated default baudrate
 DEFAULT_TIMEOUT = DEFAULT_SETTINGS.get("timeout", 1.0)
 DEFAULT_UNIT_ID = DEFAULT_SETTINGS.get("unit_id", 1)
 
@@ -130,6 +130,8 @@ def get_baudrates() -> Dict[str, int]:
             # Fallback default baudrates
             _baudrates = {
                 "4800": 0,
+                "57600": 1,  # Updated from 9600 to 57600
+                "115200": 5
             }
     return _baudrates
 
@@ -172,7 +174,7 @@ def get_config_value(key: str, default: Any = None) -> Any:
 # Get baudrates array
 def get_baudrates_array():
     constants = _load_constants()
-    return constants.get('baudrates', [9600, 115200])
+    return constants.get('baudrates', [57600, 115200])  # Updated default baudrates
 
 BAUDRATES = get_baudrates_array()
 
@@ -181,7 +183,7 @@ def get_auto_detect_settings():
     constants = _load_constants()
     return constants.get('auto_detect', {
         "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],
-        "unit_ids": [1, 2, 3, 4]
+        "unit_ids": [0, 1, 2, 3, 4]
     })
 
 AUTO_DETECT = get_auto_detect_settings()
@@ -194,7 +196,7 @@ def get_mock_settings():
     constants = _load_constants()
     return constants.get('mock', {
         "port": "MOCK",
-        "baudrate": 9600,
+        "baudrate": 57600,  # Updated default baudrate
         "unit_id": 1
     })
 

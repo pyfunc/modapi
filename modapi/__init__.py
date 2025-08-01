@@ -45,7 +45,7 @@ load_env_files()
 from modapi.api.rest import create_rest_app  # noqa: E402
 from modapi.api.mqtt import start_mqtt_broker  # noqa: E402
 from modapi.api.cmd import execute_command  # noqa: E402
-from modapi.api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection  # noqa: E402
+from modapi.rtu import ModbusRTU, create_rtu_client, test_rtu_connection  # noqa: E402
 from modapi.api.tcp import ModbusTCP, create_tcp_client, test_tcp_connection  # noqa: E402
 
 # Import shell last to avoid circular imports

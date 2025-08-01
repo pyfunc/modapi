@@ -16,7 +16,7 @@ from modapi.api.rest import create_rest_app
 from modapi.api.mqtt import start_mqtt_broker
 from modapi.api.cmd import execute_command
 from modapi.api.shell import interactive_mode
-from modapi.api.rtu import ModbusRTU
+from modapi.rtu import ModbusRTU
 from modapi.api.tcp import ModbusTCP
 
 

@@ -8,7 +8,7 @@ import time
 from typing import List, Optional, Dict, Any, Tuple
 
 from .base import ModbusRTU
-from .config import (
+from modapi.config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
@@ -33,7 +33,7 @@ class WaveshareIO8CH(ModbusRTU):
     http://www.waveshare.com/wiki/Modbus_RTU_IO_8CH
     """
     
-    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 9600, timeout: float = 1.0):
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, timeout: float = 1.0):
         """Initialize Waveshare IO 8CH module connection"""
         super().__init__(port=port, baudrate=baudrate, timeout=timeout)
         logger.info("Initialized Waveshare IO 8CH module interface")
@@ -256,7 +256,7 @@ class WaveshareIO8CH(ModbusRTU):
         Command: 00 06 20 00 00 05 43 D8 (115200)
         
         Args:
-            baudrate: Baudrate (0=4800, 1=9600, 5=115200)
+            baudrate: Baudrate (0=4800, 1=57600, 5=115200)
             unit_id: Device unit ID (usually 0 for config)
             
         Returns:
@@ -268,7 +268,7 @@ class WaveshareIO8CH(ModbusRTU):
         # Convert common baudrates to Waveshare codes
         baudrate_code = {
             4800: 0,
-            9600: 1,
+            57600: 1,
             115200: 5
         }.get(baudrate, baudrate)  # Use direct value if not in mapping
         
@@ -298,7 +298,7 @@ class WaveshareAnalogInput8CH(ModbusRTU):
     # Analog input types are loaded from config
     # These will be added to constants.json in the next update
     
-    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 9600, timeout: float = 1.0):
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, timeout: float = 1.0):
         """Initialize Waveshare Analog Input 8CH module connection"""
         super().__init__(port=port, baudrate=baudrate, timeout=timeout)
         logger.info("Initialized Waveshare Analog Input 8CH module interface")
@@ -411,7 +411,7 @@ class WaveshareAnalogInput8CH(ModbusRTU):
         Command: 00 06 20 00 00 05 43 D8 (115200)
         
         Args:
-            baudrate: Baudrate (0=4800, 1=9600, 5=115200)
+            baudrate: Baudrate (0=4800, 1=57600, 5=115200)
             unit_id: Device unit ID (usually 0 for config)
             
         Returns:
@@ -423,7 +423,7 @@ class WaveshareAnalogInput8CH(ModbusRTU):
         # Convert common baudrates to Waveshare codes
         baudrate_code = {
             4800: 0,
-            9600: 1,
+            57600: 1,
             19200: 2,
             38400: 3,
             57600: 4,

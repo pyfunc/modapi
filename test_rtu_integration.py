@@ -12,7 +12,7 @@ import serial
 from typing import Optional, List, Dict, Any
 
 # Import the RTU module
-from modapi.api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
+from modapi.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

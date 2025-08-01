@@ -1,0 +1,40 @@
+{
+    "modes": {
+        "MODE_NORMAL": 0,
+        "MODE_LINKAGE": 1,
+        "MODE_TOGGLE": 2,
+        "MODE_EDGE_TRIGGER": 3
+    },
+    "analog_input_types": {
+        "TYPE_0_5V": 0,
+        "TYPE_0_10V": 1,
+        "TYPE_0_20MA": 2,
+        "TYPE_4_20MA": 3
+    },
+    "function_codes": {
+        "READ_COILS": 1,
+        "READ_DISCRETE_INPUTS": 2,
+        "READ_HOLDING_REGISTERS": 3,
+        "READ_INPUT_REGISTERS": 4,
+        "WRITE_SINGLE_COIL": 5,
+        "WRITE_SINGLE_REGISTER": 6,
+        "WRITE_MULTIPLE_COILS": 15,
+        "WRITE_MULTIPLE_REGISTERS": 16
+    },
+    "default_settings": {
+        "port": "/dev/ttyACM0",
+        "baudrate": 115200,
+        "timeout": 1.0,
+        "unit_id": 1
+    },
+    "baudrates": [115200],
+    "auto_detect": {
+        "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],
+        "unit_ids": [0, 1, 2]
+    },
+    "mock": {
+        "port": "MOCK",
+        "baudrate": 115200,
+        "unit_id": 1
+    }
+}

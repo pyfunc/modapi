@@ -84,7 +84,7 @@ class ModbusRTU(ModbusRTUClient):
 
 # Convenience functions for backward compatibility
 def create_rtu_client(port: str = '/dev/ttyACM0', 
-                     baudrate: int = 9600,
+                     baudrate: int = 57600,
                      timeout: float = 1.0) -> ModbusRTU:
     """
     Create RTU client instance
@@ -102,7 +102,7 @@ def create_rtu_client(port: str = '/dev/ttyACM0',
     return client
 
 def test_rtu_connection(port: str = '/dev/ttyACM0',
-                       baudrate: int = 9600,
+                       baudrate: int = 57600,
                        unit_id: int = 1) -> Tuple[bool, Dict]:
     """
     Test RTU connection quickly

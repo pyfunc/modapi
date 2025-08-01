@@ -13,7 +13,7 @@ from typing import List, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from modapi.api.rtu import ModbusRTU
+from modapi.rtu import ModbusRTU
 
 # Configure logging
 logging.basicConfig(

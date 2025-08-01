@@ -23,7 +23,7 @@ logger = logging.getLogger("ModbusScanner")
 # Import the ModbusRTU client
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from modapi.api.rtu import ModbusRTU
+from modapi.rtu import ModbusRTU
 
 
 # Waveshare Modbus RTU Analog Input 8CH specific register addresses

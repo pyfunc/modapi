@@ -8,7 +8,12 @@ import os
 import sys
 import logging
 from flask import Flask, jsonify, request, render_template_string
-from modapi.api.rtu import ModbusRTU
+from modapi.rtu import ModbusRTU
+from modapi.__main__ import auto_detect_modbus_port
+from modapi.rtu.config import (
+    DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID,
+    get_config_value, _load_constants
+)
 import time
 
 # Konfiguracja logowania
@@ -18,6 +23,25 @@ logger = logging.getLogger(__name__)
 # Globalna konfiguracja RTU
 RTU_CONFIG = None
 app = Flask(__name__)
+
+# Załaduj konfigurację z constants.json
+CONSTANTS = _load_constants()
+
+# Pobierz konfigurację auto-detekcji
+AUTO_DETECT_CONFIG = CONSTANTS.get('auto_detect', {
+    'ports': ['/dev/ttyACM0', '/dev/ttyUSB0'],
+    'unit_ids': [0, 1, 2]
+})
+
+# Pobierz konfigurację mock
+MOCK_CONFIG = CONSTANTS.get('mock', {
+    'port': 'MOCK',
+    'baudrate': 9600,
+    'unit_id': 1
+})
+
+# Pobierz konfigurację serwera
+SERVER_PORT = int(get_config_value('SERVER_PORT', 5006))
 
 # HTML template dla interfejsu web
 HTML_TEMPLATE = """
@@ -119,51 +143,25 @@ HTML_TEMPLATE = """
 """
 
 
-# Helper function to auto-detect RTU devices
-def auto_detect(ports):
-    """Auto-detect Modbus RTU device on specified ports"""
-    baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
-    unit_ids = [1, 2, 3, 4]
+# Use the auto-detection logic from modapi.__main__ for consistency
+def auto_detect():
+    """Auto-detect Modbus RTU device on specified ports using the same logic as modapi scan"""
+    # Użyj portów z konfiguracji
+    ports = AUTO_DETECT_CONFIG.get('ports', ['/dev/ttyACM0', '/dev/ttyUSB0'])
+    unit_ids = AUTO_DETECT_CONFIG.get('unit_ids', [0, 1, 2])
+    
+    logger.info(f"Scanning ports from config: {ports}")
+    
+    # Prioritize /dev/ttyACM0 if it's in the list
+    if '/dev/ttyACM0' in ports:
+        ports = ['/dev/ttyACM0'] + [p for p in ports if p != '/dev/ttyACM0']
     
     for port in ports:
-        for baudrate in baudrates:
-            for unit_id in unit_ids:
-                try:
-                    client = ModbusRTU(port, baudrate)
-                    logger.info(f"Testing configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
-                    
-                    # Próbuj odczytać rejestry
-                    logger.debug(f"Attempting to read holding registers with unit_id={unit_id}")
-                    response = client.read_holding_registers(0, 1, unit_id)
-                    if response is not None:
-                        logger.info(f"✅ Auto-detect success with holding registers: port={port}, baudrate={baudrate}, unit_id={unit_id}, response={response}")
-                        client.disconnect()
-                        return {
-                            'port': port,
-                            'baudrate': baudrate,
-                            'unit_id': unit_id
-                        }
-                    else:
-                        logger.debug(f"No response from holding registers with unit_id={unit_id}")
-                    
-                    # Próbuj odczytać cewki
-                    logger.debug(f"Attempting to read coils with unit_id={unit_id}")
-                    response = client.read_coils(0, 8, unit_id)
-                    if response is not None:
-                        logger.info(f"✅ Auto-detect success with coils: port={port}, baudrate={baudrate}, unit_id={unit_id}, response={response}")
-                        client.disconnect()
-                        return {
-                            'port': port,
-                            'baudrate': baudrate,
-                            'unit_id': unit_id
-                        }
-                    else:
-                        logger.debug(f"No response from coils with unit_id={unit_id}")
-                    
-                    client.disconnect()
-                except Exception as e:
-                    # Log connection errors
-                    logger.debug(f"Error testing {port} at {baudrate} baud with unit_id={unit_id}: {e}")
+        logger.info(f"Checking port: {port}")
+        result = auto_detect_modbus_port(debug=True, unit_id=None)
+        if result:
+            logger.info(f"✅ Found Modbus device on {result['port']} at {result['baudrate']} baud")
+            return result
     
     logger.warning("No working configuration found")
     return None
@@ -172,10 +170,12 @@ def init_mock_mode():
     """Initialize mock mode for testing without hardware"""
     global RTU_CONFIG
     print("🔧 Uruchamiam w trybie MOCK (bez rzeczywistego urządzenia)")
+    
+    # Użyj konfiguracji mock z constants.json
     RTU_CONFIG = {
-        'port': 'MOCK',
-        'baudrate': 9600,
-        'unit_id': 1
+        'port': MOCK_CONFIG.get('port', 'MOCK'),
+        'baudrate': MOCK_CONFIG.get('baudrate', 9600),
+        'unit_id': MOCK_CONFIG.get('unit_id', 1)
     }
     logger.info(f"✅ Używam konfiguracji MOCK: {RTU_CONFIG}")
     
@@ -209,8 +209,8 @@ def init_rtu():
     
     logger.info("Inicjalizacja RTU...")
     
-    # Spróbuj auto-detekcji
-    RTU_CONFIG = auto_detect(['/dev/ttyACM0', '/dev/ttyUSB0'])
+    # Użyj funkcji auto-detekcji z konfiguracją z constants.json
+    RTU_CONFIG = auto_detect()
     
     if RTU_CONFIG:
         logger.info(f"✅ Znaleziono działającą konfigurację RTU: {RTU_CONFIG}")
@@ -218,23 +218,23 @@ def init_rtu():
     else:
         logger.error("❌ Nie znaleziono działającej konfiguracji RTU!")
         
-        # Spróbuj ręcznie z domyślnymi ustawieniami
-        logger.info("Próbuję połączenia ręcznego z domyślnymi ustawieniami...")
-        manual_client = ModbusRTU('/dev/ttyACM0', 9600)
+        # Spróbuj ręcznie z domyślnymi ustawieniami z config.py
+        logger.info(f"Próbuję połączenia ręcznego z domyślnymi ustawieniami: port={DEFAULT_PORT}, baudrate={DEFAULT_BAUDRATE}")
+        manual_client = ModbusRTU(DEFAULT_PORT, DEFAULT_BAUDRATE)
         
         if manual_client.connect():
             # Implement test_connection directly
             result = {
-                'port': '/dev/ttyACM0',
-                'baudrate': 9600,
-                'unit_id': 1,
+                'port': DEFAULT_PORT,
+                'baudrate': DEFAULT_BAUDRATE,
+                'unit_id': DEFAULT_UNIT_ID,
                 'success': False,
                 'error': None
             }
             
             try:
                 # Try to read a register to verify connection
-                response = manual_client.read_holding_registers(0, 1, 1)
+                response = manual_client.read_holding_registers(0, 1, DEFAULT_UNIT_ID)
                 if response is not None:
                     result['success'] = True
                 else:
@@ -242,7 +242,7 @@ def init_rtu():
                     
                 # Try reading coils if registers didn't work
                 if not result['success']:
-                    response = manual_client.read_coils(0, 8, 1)
+                    response = manual_client.read_coils(0, 8, DEFAULT_UNIT_ID)
                     if response is not None:
                         result['success'] = True
                         result['error'] = None
@@ -252,9 +252,9 @@ def init_rtu():
             success = result['success']
             if success:
                 RTU_CONFIG = {
-                    'port': '/dev/ttyACM0',
-                    'baudrate': 9600, 
-                    'unit_id': 1
+                    'port': DEFAULT_PORT,
+                    'baudrate': DEFAULT_BAUDRATE, 
+                    'unit_id': DEFAULT_UNIT_ID
                 }
                 logger.info(f"✅ Połączenie ręczne udane: {RTU_CONFIG}")
                 manual_client.disconnect()
@@ -428,6 +428,45 @@ def get_register(address):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/toggle_coil_0', methods=['POST'])
+def toggle_coil_0():
+    """Przełącz stan pierwszej cewki (adres 0)"""
+    if not RTU_CONFIG:
+        return jsonify({'error': 'RTU not configured'}), 500
+    
+    try:
+        with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
+            # Odczytaj aktualny stan cewki 0
+            current_state = client.read_coils(RTU_CONFIG['unit_id'], 0, 1)
+            if current_state is None or len(current_state) == 0:
+                return jsonify({'error': 'Failed to read current coil state'}), 500
+                
+            new_state = not current_state[0]
+            
+            # Ustaw nowy stan
+            success = client.write_single_coil(RTU_CONFIG['unit_id'], 0, new_state)
+            if success:
+                # Potwierdź zapis przez odczyt
+                verification = client.read_coils(RTU_CONFIG['unit_id'], 0, 1)
+                actual_state = verification[0] if verification else None
+                
+                return jsonify({
+                    'address': 0,
+                    'previous_state': current_state[0],
+                    'new_state': new_state,
+                    'actual_state': actual_state,
+                    'success': True,
+                    'verified': actual_state == new_state if actual_state is not None else False,
+                    'timestamp': time.time()
+                })
+            else:
+                return jsonify({'error': 'Failed to write coil'}), 500
+                
+    except Exception as e:
+        logger.error(f"Błąd przełączania cewki 0: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("🚀 RTU Output Server - Zastępuje problematyczny run_output.py")
     print("📡 Używa bezpośredniej komunikacji RTU zamiast PyModbus")
@@ -457,5 +496,5 @@ if __name__ == '__main__':
         sys.exit(1)
     
     # Uruchom serwer
-    print(f"✅ Uruchamiam serwer na http://localhost:5005/")
-    app.run(host='0.0.0.0', port=5005, debug=False, use_reloader=False)
+    print(f"✅ Uruchamiam serwer na http://localhost:{SERVER_PORT}/")
+    app.run(host='0.0.0.0', port=SERVER_PORT, debug=False, use_reloader=False)

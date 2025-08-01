@@ -40,7 +40,7 @@ def find_serial_ports() -> List[str]:
     logger.info(f"Found {len(available_ports)} serial ports: {available_ports}")
     return available_ports
 
-def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5, unit_id: int = 1) -> bool:
+def test_modbus_port(port: str, baudrate: int = 57600, timeout: float = 0.5, unit_id: int = 1) -> bool:
     """
     Test if a serial port has a Modbus device connected
     
@@ -129,7 +129,7 @@ def scan_for_devices(ports: List[str] = None,
     Returns:
         List[Dict[str, Any]]: List of detected devices with configuration
     """
-    from .config import BAUDRATES as DEFAULT_BAUDRATES, AUTO_DETECT_UNIT_IDS
+    from modapi.config import BAUDRATES as DEFAULT_BAUDRATES, AUTO_DETECT_UNIT_IDS
     
     if ports is None:
         ports = find_serial_ports()

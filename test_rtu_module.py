@@ -5,9 +5,9 @@ Test script for the refactored Modbus RTU module
 
 import logging
 import sys
-from modapi.api.rtu import ModbusRTU, test_rtu_connection, create_rtu_client
-from modapi.api.rtu.utils import find_serial_ports, scan_for_devices
-from modapi.api.rtu.devices import WaveshareIO8CH, WaveshareAnalogInput8CH
+from modapi.rtu import ModbusRTU, test_rtu_connection, create_rtu_client
+from modapi.rtu.utils import find_serial_ports, scan_for_devices
+from modapi.rtu.devices import WaveshareIO8CH, WaveshareAnalogInput8CH
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 

@@ -35,7 +35,7 @@ class ModbusConnectionPool:
         self._cleanup_thread = None
         self._running = False
     
-    def get_connection(self, port: str, baudrate: int = 9600, 
+    def get_connection(self, port: str, baudrate: int = 57600,
                       timeout: float = 1.0, **kwargs) -> ModbusRTU:
         """
         Get a connection from the pool or create a new one
@@ -75,7 +75,7 @@ class ModbusConnectionPool:
                 logger.error(f"Failed to connect to {port}")
                 raise ConnectionError(f"Failed to connect to {port}")
     
-    def release_connection(self, port: str, baudrate: int = 9600):
+    def release_connection(self, port: str, baudrate: int = 57600):
         """
         Mark connection as no longer in use
         
@@ -88,7 +88,7 @@ class ModbusConnectionPool:
             if key in self.connections:
                 self.last_used[key] = time.time()
     
-    def close_connection(self, port: str, baudrate: int = 9600):
+    def close_connection(self, port: str, baudrate: int = 57600):
         """
         Close and remove a connection
         
@@ -185,7 +185,7 @@ def create_ws_app(port: Optional[str] = None,
     
     Args:
         port: Modbus serial port (default: auto-detect)
-        baudrate: Baud rate (default: 9600)
+        baudrate: Baud rate (default: 57600)
         timeout: Timeout in seconds (default: 1.0)
         host: Host to bind the API server (default: 0.0.0.0)
         api_port: Port to bind the API server (default: 5005)
@@ -215,7 +215,7 @@ def create_ws_app(port: Optional[str] = None,
         port = '/dev/ttyACM0'
     
     if baudrate is None:
-        baudrate = 9600
+        baudrate = 57600
     
     if timeout is None:
         timeout = 1.0
@@ -613,7 +613,7 @@ def run_ws_server(port: Optional[str] = None,
     
     Args:
         port: Modbus serial port (default: auto-detect)
-        baudrate: Baud rate (default: 9600)
+        baudrate: Baud rate (default: 57600)
         timeout: Timeout in seconds (default: 1.0)
         host: Host to bind the API server (default: 0.0.0.0)
         api_port: Port to bind the API server (default: 5005)
