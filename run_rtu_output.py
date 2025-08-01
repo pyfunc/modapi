@@ -209,23 +209,193 @@ def auto_detect():
     """Auto-detect Modbus RTU device on specified ports using the same logic as modapi scan"""
     # Użyj portów z konfiguracji
     ports = AUTO_DETECT_CONFIG.get('ports', ['/dev/ttyACM0', '/dev/ttyUSB0'])
-    unit_ids = AUTO_DETECT_CONFIG.get('unit_ids', [0, 1, 2])
+    unit_ids = AUTO_DETECT_CONFIG.get('unit_ids', [0, 1, 2, 3, 4, 5, 10, 15, 16, 255])
     
     logger.info(f"Scanning ports from config: {ports}")
+    logger.info(f"Using unit IDs: {unit_ids}")
     
     # Prioritize /dev/ttyACM0 if it's in the list
     if '/dev/ttyACM0' in ports:
         ports = ['/dev/ttyACM0'] + [p for p in ports if p != '/dev/ttyACM0']
     
-    for port in ports:
-        logger.info(f"Checking port: {port}")
-        # Explicitly pass PRIORITIZED_BAUDRATES to ensure we use the correct order
-        result = auto_detect_modbus_port(baudrates=PRIORITIZED_BAUDRATES, debug=True, unit_id=None)
-        if result:
-            logger.info(f"✅ Found Modbus device on {result['port']} at {result['baudrate']} baud")
-            return result
+    # First try auto_detect_modbus_port with our prioritized baudrates
+    # This will use the improved port filtering from modapi.rtu.utils.find_serial_ports
+    logger.info("Using auto_detect_modbus_port with prioritized baudrates")
+    result = auto_detect_modbus_port(baudrates=PRIORITIZED_BAUDRATES, debug=True)
+    if result:
+        logger.info(f"✅ Found Modbus device on {result['port']} at {result['baudrate']} baud with unit ID {result.get('unit_id', 1)}")
+        # Verify the connection by trying to read coils
+        try:
+            with ModbusRTU(result['port'], result['baudrate']) as client:
+                unit_id = result.get('unit_id', 1)
+                # Try multiple function codes for Waveshare compatibility
+                success = False
+                
+                # Try reading coils (function code 1)
+                logger.info(f"Trying READ_COILS (FC1) with unit ID {unit_id}")
+                try:
+                    coils = client.read_coils(unit_id, 0, 1)
+                    if coils and len(coils) > 0:
+                        logger.info(f"✅ Successfully verified connection with READ_COILS and unit ID {unit_id}")
+                        success = True
+                except Exception as e:
+                    logger.warning(f"⚠️ READ_COILS failed: {e}")
+                
+                # Try reading discrete inputs (function code 2)
+                if not success:
+                    logger.info(f"Trying READ_DISCRETE_INPUTS (FC2) with unit ID {unit_id}")
+                    try:
+                        inputs = client.read_discrete_inputs(unit_id, 0, 1)
+                        if inputs and len(inputs) > 0:
+                            logger.info(f"✅ Successfully verified connection with READ_DISCRETE_INPUTS and unit ID {unit_id}")
+                            success = True
+                    except Exception as e:
+                        logger.warning(f"⚠️ READ_DISCRETE_INPUTS failed: {e}")
+                
+                # Try reading holding registers (function code 3)
+                if not success:
+                    logger.info(f"Trying READ_HOLDING_REGISTERS (FC3) with unit ID {unit_id}")
+                    try:
+                        registers = client.read_holding_registers(unit_id, 0, 1)
+                        if registers and len(registers) > 0:
+                            logger.info(f"✅ Successfully verified connection with READ_HOLDING_REGISTERS and unit ID {unit_id}")
+                            success = True
+                    except Exception as e:
+                        logger.warning(f"⚠️ READ_HOLDING_REGISTERS failed: {e}")
+                
+                # Try reading input registers (function code 4)
+                if not success:
+                    logger.info(f"Trying READ_INPUT_REGISTERS (FC4) with unit ID {unit_id}")
+                    try:
+                        registers = client.read_input_registers(unit_id, 0, 1)
+                        if registers and len(registers) > 0:
+                            logger.info(f"✅ Successfully verified connection with READ_INPUT_REGISTERS and unit ID {unit_id}")
+                            success = True
+                    except Exception as e:
+                        logger.warning(f"⚠️ READ_INPUT_REGISTERS failed: {e}")
+                
+                if success:
+                    result['unit_id'] = unit_id
+                    return result
+                else:
+                    logger.warning(f"⚠️ Auto-detection found a device but couldn't communicate with unit ID {unit_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Auto-detection verification failed: {e}")
     
-    logger.warning("No working configuration found")
+    # If that fails, try with each unit ID in our config
+    for unit_id in unit_ids:
+        logger.info(f"Trying with unit ID: {unit_id}")
+        result = auto_detect_modbus_port(baudrates=PRIORITIZED_BAUDRATES, debug=True, unit_id=unit_id)
+        if result:
+            logger.info(f"✅ Found Modbus device on {result['port']} at {result['baudrate']} baud with unit ID {unit_id}")
+            # Verify the connection by trying multiple function codes
+            try:
+                with ModbusRTU(result['port'], result['baudrate']) as client:
+                    # Try multiple function codes for Waveshare compatibility
+                    success = False
+                    
+                    # Try reading coils (function code 1)
+                    logger.info(f"Trying READ_COILS (FC1) with unit ID {unit_id}")
+                    try:
+                        coils = client.read_coils(unit_id, 0, 1)
+                        if coils and len(coils) > 0:
+                            logger.info(f"✅ Successfully verified connection with READ_COILS and unit ID {unit_id}")
+                            success = True
+                    except Exception as e:
+                        logger.warning(f"⚠️ READ_COILS failed: {e}")
+                    
+                    # Try reading discrete inputs (function code 2)
+                    if not success:
+                        logger.info(f"Trying READ_DISCRETE_INPUTS (FC2) with unit ID {unit_id}")
+                        try:
+                            inputs = client.read_discrete_inputs(unit_id, 0, 1)
+                            if inputs and len(inputs) > 0:
+                                logger.info(f"✅ Successfully verified connection with READ_DISCRETE_INPUTS and unit ID {unit_id}")
+                                success = True
+                        except Exception as e:
+                            logger.warning(f"⚠️ READ_DISCRETE_INPUTS failed: {e}")
+                    
+                    # Try reading holding registers (function code 3)
+                    if not success:
+                        logger.info(f"Trying READ_HOLDING_REGISTERS (FC3) with unit ID {unit_id}")
+                        try:
+                            registers = client.read_holding_registers(unit_id, 0, 1)
+                            if registers and len(registers) > 0:
+                                logger.info(f"✅ Successfully verified connection with READ_HOLDING_REGISTERS and unit ID {unit_id}")
+                                success = True
+                        except Exception as e:
+                            logger.warning(f"⚠️ READ_HOLDING_REGISTERS failed: {e}")
+                    
+                    # Try reading input registers (function code 4)
+                    if not success:
+                        logger.info(f"Trying READ_INPUT_REGISTERS (FC4) with unit ID {unit_id}")
+                        try:
+                            registers = client.read_input_registers(unit_id, 0, 1)
+                            if registers and len(registers) > 0:
+                                logger.info(f"✅ Successfully verified connection with READ_INPUT_REGISTERS and unit ID {unit_id}")
+                                success = True
+                        except Exception as e:
+                            logger.warning(f"⚠️ READ_INPUT_REGISTERS failed: {e}")
+                    
+                    if success:
+                        # Make sure unit_id is in the result
+                        result['unit_id'] = unit_id
+                        return result
+                    else:
+                        logger.warning(f"⚠️ Auto-detection found a device but couldn't communicate with unit ID {unit_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Auto-detection verification failed with unit ID {unit_id}: {e}")
+    
+    # Last resort: try all combinations of baudrates and unit IDs
+    logger.info("Trying all combinations of baudrates and unit IDs as last resort")
+    for port in ports:
+        for baudrate in BAUDRATES:
+            for unit_id in unit_ids:
+                logger.info(f"Testing port {port} at {baudrate} baud with unit ID {unit_id}")
+                try:
+                    with ModbusRTU(port, baudrate) as client:
+                        # Try multiple function codes for Waveshare compatibility
+                        success = False
+                        
+                        # Try reading coils (function code 1)
+                        try:
+                            coils = client.read_coils(unit_id, 0, 1)
+                            if coils and len(coils) > 0:
+                                logger.info(f"✅ Success with READ_COILS! Found working configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
+                                return {'port': port, 'baudrate': baudrate, 'unit_id': unit_id}
+                        except Exception:
+                            pass
+                        
+                        # Try reading discrete inputs (function code 2)
+                        try:
+                            inputs = client.read_discrete_inputs(unit_id, 0, 1)
+                            if inputs and len(inputs) > 0:
+                                logger.info(f"✅ Success with READ_DISCRETE_INPUTS! Found working configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
+                                return {'port': port, 'baudrate': baudrate, 'unit_id': unit_id}
+                        except Exception:
+                            pass
+                        
+                        # Try reading holding registers (function code 3)
+                        try:
+                            registers = client.read_holding_registers(unit_id, 0, 1)
+                            if registers and len(registers) > 0:
+                                logger.info(f"✅ Success with READ_HOLDING_REGISTERS! Found working configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
+                                return {'port': port, 'baudrate': baudrate, 'unit_id': unit_id}
+                        except Exception:
+                            pass
+                        
+                        # Try reading input registers (function code 4)
+                        try:
+                            registers = client.read_input_registers(unit_id, 0, 1)
+                            if registers and len(registers) > 0:
+                                logger.info(f"✅ Success with READ_INPUT_REGISTERS! Found working configuration: port={port}, baudrate={baudrate}, unit_id={unit_id}")
+                                return {'port': port, 'baudrate': baudrate, 'unit_id': unit_id}
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.debug(f"Failed with {port}, {baudrate}, {unit_id}: {e}")
+    
+    logger.warning("No working configuration found after trying all combinations")
     return None
 
 def init_mock_mode():
@@ -284,9 +454,9 @@ def init_rtu():
                 # Create a client with the detected configuration
                 client = ModbusRTU(port=RTU_CONFIG['port'], baudrate=RTU_CONFIG['baudrate'])
                 if client.connect():
-                    # Try to switch the device to the highest prioritized baudrate
-                    if client.set_device_baudrate(unit_id=RTU_CONFIG['unit_id']):
-                        logger.info(f"✅ Przełączono urządzenie na {HIGHEST_PRIORITIZED_BAUDRATE} baud")
+                    # Try to switch both the device and client to the highest prioritized baudrate
+                    if client.switch_baudrate(HIGHEST_PRIORITIZED_BAUDRATE):
+                        logger.info(f"✅ Przełączono urządzenie i klienta na {HIGHEST_PRIORITIZED_BAUDRATE} baud")
                         # Update the configuration with the new baudrate
                         RTU_CONFIG['baudrate'] = HIGHEST_PRIORITIZED_BAUDRATE
                     else:
@@ -294,6 +464,7 @@ def init_rtu():
                     client.disconnect()
             except Exception as e:
                 logger.error(f"❌ Błąd podczas przełączania prędkości: {e}")
+                logger.debug(f"Szczegóły błędu: {str(e)}", exc_info=True)
         
         return True
     else:
@@ -405,16 +576,19 @@ def get_coil(address):
         return jsonify({'error': 'Invalid coil address'}), 400
     
     try:
+        unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
+        logger.debug(f"Reading coil {address} with unit_id={unit_id}")
         with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-            coils = client.read_coils(RTU_CONFIG['unit_id'], address, 1)
-            if coils is not None:
+            coils = client.read_coils(unit_id, address, 1)
+            if coils and len(coils) > 0:  # Check if list is not empty
                 return jsonify({
                     'address': address,
                     'state': coils[0],
+                    'unit_id': unit_id,
                     'timestamp': time.time()
                 })
             else:
-                return jsonify({'error': 'Failed to read coil'}), 500
+                return jsonify({'error': f'Failed to read coil or no response from device (unit_id={unit_id})'}), 500
                 
     except Exception as e:
         logger.error(f"Błąd odczytu cewki {address}: {e}")
@@ -436,13 +610,15 @@ def set_coil(address):
             return jsonify({'error': 'Missing state parameter'}), 400
         
         state = bool(data['state'])
+        unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
+        logger.debug(f"Setting coil {address} to {state} with unit_id={unit_id}")
         
         with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-            success = client.write_single_coil(RTU_CONFIG['unit_id'], address, state)
+            success = client.write_single_coil(unit_id, address, state)
             if success:
                 # Potwierdź zapis przez odczyt
-                verification = client.read_coils(RTU_CONFIG['unit_id'], address, 1)
-                actual_state = verification[0] if verification else None
+                verification = client.read_coils(unit_id, address, 1)
+                actual_state = verification[0] if verification and len(verification) > 0 else None
                 
                 return jsonify({
                     'address': address,
@@ -467,16 +643,19 @@ def get_all_coils():
         return jsonify({'error': 'RTU not configured'}), 500
     
     try:
+        unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
+        logger.debug(f"Reading all coils with unit_id={unit_id}")
         with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-            coils = client.read_coils(RTU_CONFIG['unit_id'], 0, 16)
-            if coils is not None:
+            coils = client.read_coils(unit_id, 0, 16)
+            if coils and len(coils) > 0:  # Check if list is not empty
                 return jsonify({
                     'coils': coils,
                     'count': len(coils),
+                    'unit_id': unit_id,
                     'timestamp': time.time()
                 })
             else:
-                return jsonify({'error': 'Failed to read coils'}), 500
+                return jsonify({'error': f'Failed to read coils or no response from device (unit_id={unit_id})'}), 500
                 
     except Exception as e:
         logger.error(f"Błąd odczytu cewek: {e}")
@@ -493,16 +672,19 @@ def get_register(address):
         return jsonify({'error': 'Invalid register address'}), 400
     
     try:
+        unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
+        logger.debug(f"Reading register {address} with unit_id={unit_id}")
         with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
-            registers = client.read_holding_registers(RTU_CONFIG['unit_id'], address, 1)
-            if registers is not None:
+            registers = client.read_holding_registers(unit_id, address, 1)
+            if registers and len(registers) > 0:  # Check if list is not empty
                 return jsonify({
                     'address': address,
                     'value': registers[0],
+                    'unit_id': unit_id,
                     'timestamp': time.time()
                 })
             else:
-                return jsonify({'error': 'Failed to read register (may not be supported)'}), 500
+                return jsonify({'error': f'Failed to read register or no response from device (unit_id={unit_id})'}), 500
                 
     except Exception as e:
         logger.error(f"Błąd odczytu rejestru {address}: {e}")
@@ -516,20 +698,23 @@ def toggle_coil_0():
         return jsonify({'error': 'RTU not configured'}), 500
     
     try:
+        unit_id = RTU_CONFIG.get('unit_id', DEFAULT_UNIT_ID)
+        logger.debug(f"Toggling coil 0 with unit_id={unit_id}")
+        
         with ModbusRTU(RTU_CONFIG['port'], RTU_CONFIG['baudrate']) as client:
             # Odczytaj aktualny stan cewki 0
-            current_state = client.read_coils(RTU_CONFIG['unit_id'], 0, 1)
+            current_state = client.read_coils(unit_id, 0, 1)
             if current_state is None or len(current_state) == 0:
-                return jsonify({'error': 'Failed to read current coil state'}), 500
+                return jsonify({'error': f'Failed to read current coil state (unit_id={unit_id})'}), 500
                 
             new_state = not current_state[0]
             
             # Ustaw nowy stan
-            success = client.write_single_coil(RTU_CONFIG['unit_id'], 0, new_state)
+            success = client.write_single_coil(unit_id, 0, new_state)
             if success:
                 # Potwierdź zapis przez odczyt
-                verification = client.read_coils(RTU_CONFIG['unit_id'], 0, 1)
-                actual_state = verification[0] if verification else None
+                verification = client.read_coils(unit_id, 0, 1)
+                actual_state = verification[0] if verification and len(verification) > 0 else None
                 
                 return jsonify({
                     'address': 0,

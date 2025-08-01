@@ -64,8 +64,8 @@ class ModbusRTUClient(ModbusRTU):
         if not self.is_connected() and not self.connect():
             return None
         
-        request = build_read_request(unit_id, FUNC_READ_COILS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_COILS)
+        request = build_read_request(unit_id, READ_COILS, address, count)
+        response = self.send_request(request, unit_id, READ_COILS)
         
         if response is None:
             return None
@@ -87,8 +87,8 @@ class ModbusRTUClient(ModbusRTU):
         if not self.is_connected() and not self.connect():
             return None
         
-        request = build_read_request(unit_id, FUNC_READ_DISCRETE_INPUTS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_DISCRETE_INPUTS)
+        request = build_read_request(unit_id, READ_DISCRETE_INPUTS, address, count)
+        response = self.send_request(request, unit_id, READ_DISCRETE_INPUTS)
         
         if response is None:
             return None
@@ -110,8 +110,8 @@ class ModbusRTUClient(ModbusRTU):
         if not self.is_connected() and not self.connect():
             return None
         
-        request = build_read_request(unit_id, FUNC_READ_HOLDING_REGISTERS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_HOLDING_REGISTERS)
+        request = build_read_request(unit_id, READ_HOLDING_REGISTERS, address, count)
+        response = self.send_request(request, unit_id, READ_HOLDING_REGISTERS)
         
         if response is None:
             return None
@@ -133,8 +133,8 @@ class ModbusRTUClient(ModbusRTU):
         if not self.is_connected() and not self.connect():
             return None
         
-        request = build_read_request(unit_id, FUNC_READ_INPUT_REGISTERS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_INPUT_REGISTERS)
+        request = build_read_request(unit_id, READ_INPUT_REGISTERS, address, count)
+        response = self.send_request(request, unit_id, READ_INPUT_REGISTERS)
         
         if response is None:
             return None
@@ -157,7 +157,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_single_coil_request(unit_id, address, value)
-        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_COIL)
+        response = self.send_request(request, unit_id, WRITE_SINGLE_COIL)
         
         return response is not None
     
@@ -177,7 +177,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_single_register_request(unit_id, address, value)
-        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_REGISTER)
+        response = self.send_request(request, unit_id, WRITE_SINGLE_REGISTER)
         
         return response is not None
     
@@ -197,7 +197,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_multiple_coils_request(unit_id, address, values)
-        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_COILS)
+        response = self.send_request(request, unit_id, WRITE_MULTIPLE_COILS)
         
         return response is not None
     
@@ -217,7 +217,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_multiple_registers_request(unit_id, address, values)
-        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_REGISTERS)
+        response = self.send_request(request, unit_id, WRITE_MULTIPLE_REGISTERS)
         
         return response is not None
         
@@ -280,7 +280,7 @@ class ModbusRTUClient(ModbusRTU):
             return True
         
         # For directed messages, we expect a response
-        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_REGISTER)
+        response = self.send_request(request, unit_id, WRITE_SINGLE_REGISTER)
         success = response is not None
         
         if success:
@@ -364,6 +364,7 @@ class ModbusRTUClient(ModbusRTU):
         baudrates = BAUDRATES
         # Add more common baudrates if the list is too short
         if len(baudrates) < 3:
+            # Use the imported PRIORITIZED_BAUDRATES from config
             baudrates = list(set(baudrates + PRIORITIZED_BAUDRATES))
         
         # Ensure we have a comprehensive list of unit IDs to test

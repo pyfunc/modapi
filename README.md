@@ -379,3 +379,5 @@ address, status = parse_coil_status("Coil 3 set to ON")
 ## License
 
 This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
+python -m modapi scan --ports /dev/ttyACM0 --baudrates 9600,19200 --unit-ids 0,1,2,247 --debug
+modapi scan --ports /dev/ttyACM0 --baudrates 9600,19200 --unit-ids 0,1,247 --debug

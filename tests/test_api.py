@@ -206,7 +206,7 @@ class TestCmdApi(unittest.TestCase):
         mock_client.write_coil.assert_called_once_with(0, True, unit=1)
         mock_client.disconnect.assert_called_once()
     
-    @patch('modapi.rtu.ModbusRTU')
+    @patch('modapi.api.cmd.ModbusRTU')
     @patch('modapi.api.cmd.test_rtu_connection')
     def test_execute_command_rc(self, mock_test_connection, mock_client_class):
         """Test execute_command with read_coils command"""
@@ -221,6 +221,12 @@ class TestCmdApi(unittest.TestCase):
         
         # Mock the baudrate property
         type(mock_client).baudrate = 9600
+        
+        # Mock the baudrate attribute directly on the class
+        mock_client_class.return_value.baudrate = 9600
+        
+        # Ensure the mock is used for the connect method
+        mock_client.connect.return_value = True
         
         # Enable debug logging
         import logging

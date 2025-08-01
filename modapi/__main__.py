@@ -124,9 +124,21 @@ def main():
     # Scan command
     scan_parser = subparsers.add_parser('scan', help='Scan for Modbus devices')
     scan_parser.add_argument('--debug', action='store_true', help='Enable debug output')
-    scan_parser.add_argument('--port', help='Specify a specific port to test')
-    scan_parser.add_argument('--baudrate', type=int, help='Specify a specific baud rate to test')
-    scan_parser.add_argument('--unit', type=int, help='Specify a specific unit ID to test')
+    
+    # Support both singular and plural forms for port/ports
+    port_group = scan_parser.add_mutually_exclusive_group()
+    port_group.add_argument('--port', help='Specify a specific port to test')
+    port_group.add_argument('--ports', help='Specify comma-separated ports to test (e.g., /dev/ttyACM0,/dev/ttyUSB0)')
+    
+    # Support both singular and plural forms for baudrate/baudrates
+    baudrate_group = scan_parser.add_mutually_exclusive_group()
+    baudrate_group.add_argument('--baudrate', type=int, help='Specify a specific baud rate to test')
+    baudrate_group.add_argument('--baudrates', help='Specify comma-separated baud rates to test (e.g., 9600,19200)')
+    
+    # Support both singular and plural forms for unit/unit-ids
+    unit_group = scan_parser.add_mutually_exclusive_group()
+    unit_group.add_argument('--unit', type=int, help='Specify a specific unit ID to test')
+    unit_group.add_argument('--unit-ids', help='Specify comma-separated unit IDs to test (e.g., 1,2,3)')
     
     args = parser.parse_args()
     
@@ -188,38 +200,73 @@ def main():
             logging.basicConfig(level=logging.INFO)
             logger.setLevel(logging.INFO)
             
-        # If a specific port is provided, test just that port
+        # Parse ports, baudrates, and unit IDs from arguments
+        ports = []
         if args.port:
-            print(f"🔍 Testing specified port: {args.port}")
-            baudrates = [args.baudrate] if args.baudrate else PRIORITIZED_BAUDRATES
+            ports = [args.port]
+        elif args.ports:
+            ports = args.ports.split(',')
+        
+        baudrates = PRIORITIZED_BAUDRATES
+        if args.baudrate:
+            baudrates = [args.baudrate]
+        elif args.baudrates:
+            try:
+                baudrates = [int(b) for b in args.baudrates.split(',')]
+            except ValueError:
+                print("Error: Invalid baudrate format. Use comma-separated integers.")
+                sys.exit(1)
+        
+        unit_ids = [1]  # Default unit ID
+        if args.unit is not None:
+            unit_ids = [args.unit]
+        elif args.unit_ids:
+            try:
+                unit_ids = [int(u) for u in args.unit_ids.split(',')]
+            except ValueError:
+                print("Error: Invalid unit ID format. Use comma-separated integers.")
+                sys.exit(1)
+        
+        # If specific ports are provided, test just those ports
+        if ports:
+            for port in ports:
+                print(f"🔍 Testing specified port: {port}")
+                
+                for baudrate in baudrates:
+                    print(f"  ⚙️  {baudrate} baud...")
+                    
+                    for unit_id in unit_ids:
+                        print(f"    📟 Unit ID {unit_id}...", end=" ")
+                        success, result = test_modbus_port(
+                            port=port,
+                            baudrate=baudrate,
+                            unit_id=unit_id,
+                            debug=args.debug
+                        )
+                        if success:
+                            print("✅ Device found!")
+                            if args.debug:
+                                print(f"    Details: {result}")
+                            sys.exit(0)
+                        else:
+                            if args.debug:
+                                print(f"❌ {result.get('error', 'No response')}")
+                            else:
+                                print("❌")
+                
+                print(f"\n❌ No Modbus device found on {port} with the specified parameters")
             
-            for baudrate in baudrates:
-                print(f"  ⚙️  {baudrate} baud...", end=" ")
-                success, result = test_modbus_port(
-                    port=args.port,
-                    baudrate=baudrate,
-                    unit_id=args.unit,
-                    debug=args.debug
-                )
-                if success:
-                    print("✅ Device found!")
-                    if args.debug:
-                        print(f"    Details: {result}")
-                    sys.exit(0)
-                else:
-                    if args.debug:
-                        print(f"❌ {result.get('error', 'No response')}")
-                    else:
-                        print("❌")
-            
-            print(f"\n❌ No Modbus device found on {args.port}")
+            if len(ports) > 1:
+                print(f"\n❌ No Modbus devices found on any of the specified ports: {', '.join(ports)}")
+            else:
+                print(f"\n❌ No Modbus device found on {ports[0]}")
             sys.exit(1)
         else:
             # Scan all ports
             result = auto_detect_modbus_port(
-                baudrates=[args.baudrate] if args.baudrate else None,
+                baudrates=baudrates if baudrates != PRIORITIZED_BAUDRATES else None,
                 debug=args.debug,
-                unit_id=args.unit
+                unit_id=unit_ids[0] if unit_ids else None
             )
             if result:
                 print(f"\n✅ Found Modbus device on {result.get('port')}")
