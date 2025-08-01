@@ -89,19 +89,33 @@ class TestOutputModule(unittest.TestCase):
         self.assertIn("CustomName", svg)
         self.assertIn("output-inactive", svg)
 
+    @patch('modapi.output.ModbusClient')
+    @patch('modapi.output.auto_detect_modbus_port')
     @patch('flask.Flask')
-    def test_create_output_app(self, mock_flask):
+    def test_create_output_app(self, mock_flask, mock_auto_detect, mock_modbus_client):
         """Test output app creation"""
-        # Mock Flask app
+        # Set up mocks
         mock_app = MagicMock()
         mock_flask.return_value = mock_app
+        mock_auto_detect.return_value = '/dev/ttyUSB0'
+        
+        # Mock ModbusClient instance
+        mock_client_instance = MagicMock()
+        mock_modbus_client.return_value = mock_client_instance
         
         # Test app creation
         app = create_output_app(debug=True)
         self.assertIsNotNone(app)
         
-        # Check if route was added
-        mock_app.route.assert_called()
+        # Verify Flask app was created
+        mock_flask.assert_called_once_with(__name__)
+        
+        # Verify route was added with expected path
+        mock_app.route.assert_any_call('/module/output/<int:channel>')
+        
+        # Verify before_request and after_request handlers were added
+        mock_app.before_request.assert_called_once()
+        mock_app.after_request.assert_called_once()
 
 
 if __name__ == '__main__':

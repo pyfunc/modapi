@@ -74,108 +74,103 @@ def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5,
     def log(msg, level='debug'):
         if debug or level == 'info':
             print(f"[DEBUG] {msg}" if level == 'debug' else f"[INFO] {msg}")
+    
+    # Define test parameters
+    test_addresses = [0, 1, 40001]  # Common starting addresses
+    test_units = [unit_id] if unit_id is not None else [1, 2, 255, 0]  # Common unit IDs
+    
+    for current_unit in test_units:
+        try:
+            log(f"Testing Modbus on {port} at {baudrate} baud, unit={current_unit}, timeout={timeout}s", 'info')
             
-    try:
-        log(f"Testing Modbus on {port} at {baudrate} baud, timeout={timeout}s", 'info')
-        
-        # Configure client with minimal parameters for pymodbus 3.10.0
-        client = ModbusSerialClient(
-            port=port,
-            baudrate=baudrate,
-            parity='N',
-            stopbits=1,
-            bytesize=8,
-            timeout=timeout,
-            # Set the unit ID (slave ID) for the client
-            unit=unit if unit is not None else 1
-        )
-        
-        # Test connection
-        if not client.connect():
-            log(f"Failed to open serial port {port}", 'info')
-            return False, {"error": "Failed to open serial port", "port": port}
+            # Configure client with minimal parameters for pymodbus 3.10.0
+            client = ModbusSerialClient(
+                port=port,
+                baudrate=baudrate,
+                parity='N',
+                stopbits=1,
+                bytesize=8,
+                timeout=timeout
+            )
             
-        log(f"Successfully opened {port}")
-        
-        # Define test parameters
-        test_addresses = [0, 1, 40001]  # Common starting addresses
-        test_units = [unit_id] if unit_id is not None else [1, 2, 255, 0]  # Common unit IDs
-        
-        for unit in test_units:
+            # Test connection
+            if not client.connect():
+                log(f"Failed to open serial port {port}", 'info')
+                continue  # Try next unit ID
+                
+            log(f"Successfully opened {port}")
+            
             for address in test_addresses:
                 # Test function code 1 (read coils)
                 try:
-                    log(f"Testing FC01 (read coils) - Unit: {unit}, Address: {address}")
-                    result = client.read_coils(address, 1)
+                    log(f"Testing FC01 (read coils) - Unit: {current_unit}, Address: {address}")
+                    result = client.read_coils(address, 1, device_id=current_unit)
                     if not result.isError():
-                        log(f"✓ Modbus device found (FC01) - Unit: {unit}, Address: {address}", 'info')
+                        log(f"✓ Modbus device found (FC01) - Unit: {current_unit}, Address: {address}", 'info')
                         client.close()
                         return True, {
                             "port": port,
                             "baudrate": baudrate,
-                            "unit_id": unit,
+                            "unit_id": current_unit,
                             "function_code": 1,
                             "address": address
                         }
                 except Exception as e:
-                    log(f"Error with FC01 (unit {unit}, addr {address}): {str(e)}")
+                    log(f"Error with FC01 (unit {current_unit}, addr {address}): {str(e)}")
                 
                 # Test function code 3 (read holding registers)
                 try:
-                    log(f"Testing FC03 (read holding regs) - Unit: {unit}, Address: {address}")
-                    result = client.read_holding_registers(address, 1)
+                    log(f"Testing FC03 (read holding regs) - Unit: {current_unit}, Address: {address}")
+                    result = client.read_holding_registers(address, 1, device_id=current_unit)
                     if not result.isError():
-                        log(f"✓ Modbus device found (FC03) - Unit: {unit}, Address: {address}", 'info')
+                        log(f"✓ Modbus device found (FC03) - Unit: {current_unit}, Address: {address}", 'info')
                         client.close()
                         return True, {
                             "port": port,
                             "baudrate": baudrate,
-                            "unit_id": unit,
+                            "unit_id": current_unit,
                             "function_code": 3,
                             "address": address
                         }
                 except Exception as e:
-                    log(f"Error with FC03 (unit {unit}, addr {address}): {str(e)}")
+                    log(f"Error with FC03 (unit {current_unit}, addr {address}): {str(e)}")
                 
                 # Test function code 4 (read input registers)
                 try:
-                    log(f"Testing FC04 (read input regs) - Unit: {unit}, Address: {address}")
-                    result = client.read_input_registers(address, 1)
+                    log(f"Testing FC04 (read input regs) - Unit: {current_unit}, Address: {address}")
+                    result = client.read_input_registers(address, 1, device_id=current_unit)
                     if not result.isError():
-                        log(f"✓ Modbus device found (FC04) - Unit: {unit}, Address: {address}", 'info')
+                        log(f"✓ Modbus device found (FC04) - Unit: {current_unit}, Address: {address}", 'info')
                         client.close()
                         return True, {
                             "port": port,
                             "baudrate": baudrate,
-                            "unit_id": unit,
+                            "unit_id": current_unit,
                             "function_code": 4,
                             "address": address
                         }
                 except Exception as e:
-                    log(f"Error with FC04 (unit {unit}, addr {address}): {str(e)}")
-        
-        # If we get here, no device was found
-        client.close()
-        log(f"No Modbus device found on {port} after testing all combinations", 'info')
-        return False, {
-            "port": port,
-            "baudrate": baudrate,
-            "error": "No Modbus device found"
-        }
-        
-    except Exception as e:
-        error_msg = f"Error testing {port}: {str(e)}"
-        log(error_msg, 'info')
-        if 'client' in locals():
-            try:
-                client.close()
-            except:
-                pass
-        return False, {
-            "port": port,
-            "baudrate": baudrate,
-            "error": error_msg
-        }
+                    log(f"Error with FC04 (unit {current_unit}, addr {address}): {str(e)}")
+            
+            # Close the client for this unit ID
+            client.close()
+            
+        except Exception as e:
+            error_msg = f"Error testing {port} (unit {current_unit}): {str(e)}"
+            log(error_msg, 'info')
+            if 'client' in locals():
+                try:
+                    client.close()
+                except:
+                    pass
+    
+    # If we get here, no device was found with any unit ID
+    log(f"No Modbus device found on {port} after testing all unit IDs", 'info')
+    return False, {
+        "port": port,
+        "baudrate": baudrate,
+        "error": "No Modbus device found"
+    }
 
 
 def auto_detect_modbus_port(baudrates: List[int] = None, debug: bool = False, unit_id: int = None) -> Optional[dict]:

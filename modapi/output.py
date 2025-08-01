@@ -16,7 +16,7 @@ from .client import ModbusClient, auto_detect_modbus_port
 logger = logging.getLogger(__name__)
 
 
-def parse_coil_status(text: str) -> Tuple[Optional[int], Optional[bool]]:
+def parse_coil_status(text: Optional[str]) -> Tuple[Optional[int], Optional[bool]]:
     """
     Parse coil status message to get address and status
     
@@ -24,8 +24,11 @@ def parse_coil_status(text: str) -> Tuple[Optional[int], Optional[bool]]:
         text: Status message (e.g., 'Coil 0 set to ON' or 'Coil 5 set to OFF')
     
     Returns:
-        tuple: (address: int, status: bool) or (None, None) if parsing fails
+        tuple: (address: int, status: bool) or (None, None) if parsing fails or input is None
     """
+    if not text:
+        return None, None
+        
     match = re.match(r'Coil\s+(\d+)\s+set\s+to\s+(ON|OFF)', text, re.IGNORECASE)
     if match:
         address = int(match.group(1))

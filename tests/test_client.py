@@ -258,8 +258,8 @@ class TestModbusClient(unittest.TestCase):
         self.assertEqual(result['unit_id'], 1)
         
         # Verify test_modbus_port was called with the expected parameters
-        # The first call should be to /dev/ttyUSB0 with baudrate=9600
-        mock_test_port.assert_called_with('/dev/ttyUSB0', baudrate=9600)
+        # The first call should be to /dev/ttyUSB0 with baudrate=9600 and default kwargs
+        mock_test_port.assert_called_with(port='/dev/ttyUSB0', baudrate=9600, unit_id=None, debug=False)
         
         # Test with no matches
         mock_comports.return_value = []
