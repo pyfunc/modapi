@@ -21,12 +21,49 @@ from .api.rtu import (
     create_rtu_client
 )
 
-def auto_detect_modbus_port():
-    """Auto-detect Modbus RTU port"""
+def auto_detect_modbus_port(baudrates=None, debug=False, unit_id=None):
+    """
+    Auto-detect Modbus RTU port
+    
+    Args:
+        baudrates: List of baud rates to try (default: [9600, 19200, 38400, 57600, 115200])
+        debug: Enable debug output
+        unit_id: Specific unit ID to test (default: None, tests unit ID 1)
+        
+    Returns:
+        dict: Dictionary with port information if found, None otherwise
+    """
+    if baudrates is None:
+        baudrates = [9600, 19200, 38400, 57600, 115200]
+    
     ports = find_serial_ports()
+    if debug:
+        print(f"Scanning {len(ports)} serial ports...")
+    
     for port in ports:
-        if test_modbus_port(port):
-            return port
+        if debug:
+            print(f"\nChecking port: {port}")
+        
+        for baudrate in baudrates:
+            if debug:
+                print(f"  Trying baudrate: {baudrate}")
+            
+            try:
+                # Test with the specified unit ID or default to 1
+                test_unit_id = unit_id if unit_id is not None else 1
+                if test_modbus_port(port, baudrate=baudrate, unit_id=test_unit_id):
+                    if debug:
+                        print(f"✅ Found Modbus device on {port} at {baudrate} baud")
+                    return {
+                        'port': port,
+                        'baudrate': baudrate,
+                        'unit_id': test_unit_id
+                    }
+            except Exception as e:
+                if debug:
+                    print(f"    Error: {str(e)}")
+                continue
+    
     return None
 
 # Configure logging

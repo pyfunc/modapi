@@ -1,0 +1,4 @@
+pyserial>=3.5
+pytest>=6.0.0
+pytest-mock>=3.3.1
+pytest-cov>=2.8.1
