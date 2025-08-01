@@ -32,6 +32,10 @@ def test_device_state_tracking(port='/dev/ttyACM0', unit_id=1, mock_mode=False):
         enable_state_tracking=True
     )
     
+    # Initialize device_states dictionary if it doesn't exist
+    if not hasattr(rtu, 'device_states'):
+        rtu.device_states = {}
+    
     try:
         # Connect to device
         if not mock_mode:
@@ -104,21 +108,76 @@ def test_device_state_tracking(port='/dev/ttyACM0', unit_id=1, mock_mode=False):
                 summary = asdict(device_state)
                 logger.info(f"Device state summary: {json.dumps(summary, indent=2)}")
         else:
-            # For mock mode, we already have the device_state
+                # For mock mode, get device state from device_manager
+            device_state = device_manager.get_device(port, unit_id)
+            assert device_state is not None, "Device state should not be None"
+            
+            # Verify device state contents
+            assert device_state.unit_id == unit_id, f"Expected unit_id {unit_id}, got {device_state.unit_id}"
+            assert device_state.port == port, f"Expected port {port}, got {device_state.port}"
+            
+            # Verify coil states
+            assert 0 in device_state.coils, "Coil 0 should exist"
+            assert device_state.coils[0] is True, "Coil 0 should be True"
+            assert 1 in device_state.coils, "Coil 1 should exist"
+            assert device_state.coils[1] is False, "Coil 1 should be False"
+            assert 2 in device_state.coils, "Coil 2 should exist"
+            assert device_state.coils[2] is True, "Coil 2 should be True"
+            
+            # Verify holding registers
+            assert 0 in device_state.holding_registers, "Holding register 0 should exist"
+            assert device_state.holding_registers[0] == 12345, "Holding register 0 should be 12345"
+            assert 1 in device_state.holding_registers, "Holding register 1 should exist"
+            assert device_state.holding_registers[1] == 6789, "Holding register 1 should be 6789"
+            
+            # Verify statistics
+            assert device_state.success_count == 2, f"Expected 2 successful operations, got {device_state.success_count}"
+            assert device_state.timeout_count == 1, f"Expected 1 timeout, got {device_state.timeout_count}"
+            assert device_state.crc_error_count == 1, f"Expected 1 CRC error, got {device_state.crc_error_count}"
+            assert device_state.error_count == 2, f"Expected 2 errors, got {device_state.error_count}"
+            
+            # Log the device state for debugging
             summary = asdict(device_state)
             logger.info(f"Device state summary: {json.dumps(summary, indent=2)}")
+            
+            # Verify the device state can be serialized to JSON
+            json_str = device_state.to_json()
+            assert json_str, "Device state should serialize to non-empty JSON"
         
         # Dump device state to file
-        logger.info("Dumping device state to file...")
+        log_dir = os.path.join(os.path.expanduser("~"), ".modbus_test_logs")
+        logger.info(f"Dumping device state to {log_dir}...")
+        
         if not mock_mode:
-            device_manager.dump_device(port, unit_id, os.path.join(os.path.expanduser("~"), ".modbus_test_logs"))
+            # For real hardware, dump the device state
+            dump_result = device_manager.dump_device(port, unit_id, log_dir)
+            assert dump_result is True, "Failed to dump device state to file"
+        else:
+            # For mock mode, verify the dump function works
+            dump_result = device_manager.dump_device(port, unit_id, log_dir)
+            assert dump_result is True, "Failed to dump mock device state to file"
+            
+            # Verify the file was created
+            import glob
+            pattern = os.path.join(log_dir, f"device_{port.replace('/', '_')}_{unit_id}_*.json")
+            files = glob.glob(pattern)
+            assert len(files) > 0, f"No device state files found matching {pattern}"
+            
+            # Verify the file contains valid JSON
+            with open(files[0], 'r') as f:
+                data = json.load(f)
+                assert 'unit_id' in data, "Dumped file missing unit_id"
+                assert data['unit_id'] == unit_id, f"Dumped file has wrong unit_id: {data['unit_id']}"
         
         # Dump all device states
         logger.info("Dumping all device states...")
-        device_manager.dump_all_devices(os.path.join(os.path.expanduser("~"), ".modbus_test_logs"))
+        device_manager.dump_all_devices(log_dir)
+        
+        # Verify the device was added to the global device manager
+        assert device_manager.get_device(port, unit_id) is not None, "Device should be in global device manager"
         
         # Test passes if we reach this point
-        assert True
+        return True
     
     except Exception as e:
         logger.error(f"Error during test: {e}", exc_info=True)
