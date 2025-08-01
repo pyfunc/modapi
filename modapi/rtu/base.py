@@ -10,7 +10,7 @@ import struct
 from threading import Lock
 from typing import List, Optional, Union
 
-from .crc import calculate_crc
+from . import crc
 from .protocol import (
     build_request, parse_response, parse_read_coils_response, parse_read_registers_response,
     build_read_request, build_write_single_coil_request, build_write_single_register_request,
@@ -84,20 +84,53 @@ class ModbusRTU:
             return True
             
         try:
-            self.serial_conn = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=self.timeout
-            )
+            # Close any existing connection first
+            if self.serial_conn is not None:
+                try:
+                    self.serial_conn.close()
+                except Exception as e:
+                    self.device_logger.warning(f"Error closing existing connection: {e}")
+                self.serial_conn = None
             
-            if not self.serial_conn.is_open:
-                self.serial_conn.open()
-                
-            self.device_logger.info(f"Connected to {self.port} at {self.baudrate} baud")
-            return True
+            # Try to open the serial port with different settings
+            # Some devices require different parity settings
+            parity_options = [serial.PARITY_NONE, serial.PARITY_EVEN]
+            stopbits_options = [serial.STOPBITS_ONE, serial.STOPBITS_TWO]
+            
+            for parity in parity_options:
+                for stopbits in stopbits_options:
+                    try:
+                        self.device_logger.debug(f"Trying connection with parity={parity}, stopbits={stopbits}")
+                        self.serial_conn = serial.Serial(
+                            port=self.port,
+                            baudrate=self.baudrate,
+                            bytesize=serial.EIGHTBITS,
+                            parity=parity,
+                            stopbits=stopbits,
+                            timeout=self.timeout,
+                            write_timeout=self.timeout
+                        )
+                        
+                        if not self.serial_conn.is_open:
+                            self.serial_conn.open()
+                            
+                        # Clear buffers after opening
+                        self.serial_conn.reset_input_buffer()
+                        self.serial_conn.reset_output_buffer()
+                        
+                        self.device_logger.info(f"Connected to {self.port} at {self.baudrate} baud with parity={parity}, stopbits={stopbits}")
+                        return True
+                    except Exception as e:
+                        self.device_logger.debug(f"Failed to connect with parity={parity}, stopbits={stopbits}: {e}")
+                        if self.serial_conn is not None:
+                            try:
+                                self.serial_conn.close()
+                            except:
+                                pass
+                            self.serial_conn = None
+            
+            self.device_logger.error(f"Failed to connect to {self.port} with any settings")
+            return False
             
         except Exception as e:
             self.device_logger.error(f"Failed to connect to {self.port}: {e}")
@@ -194,35 +227,53 @@ class ModbusRTU:
         for attempt in range(retry_count + 1):
             # Increase timeout for retries
             if attempt > 0:
-                self.timeout = original_timeout * (1 + attempt * 0.5)  # Increase timeout by 50% each retry
+                # Progressive timeout increase strategy
+                self.timeout = original_timeout * (1 + attempt * 0.75)  # Increased from 0.5 to 0.75 for more time
                 self.device_logger.info(f"Retry {attempt}/{retry_count} with timeout {self.timeout:.2f}s")
-                # Add a longer delay between retries
-                time.sleep(self.rs485_delay * 2)
+                # Add a longer delay between retries with exponential backoff
+                backoff_delay = self.rs485_delay * (2 ** attempt)  # Exponential backoff
+                self.device_logger.debug(f"Applying backoff delay of {backoff_delay:.3f}s before retry")
+                time.sleep(backoff_delay)
             
             with self.lock:  # Thread safety for serial operations
                 try:
                     # Clear any pending data
                     self.serial_conn.reset_input_buffer()
+                    self.serial_conn.reset_output_buffer()  # Also clear output buffer
                     
                     # Send the request
                     self.device_logger.debug(f"Sending request to unit {unit_id}, function {function_code}: {request.hex()}")
                     bytes_written = self.serial_conn.write(request)
+                    self.serial_conn.flush()  # Ensure all data is written
                     self.device_logger.debug(f"Wrote {bytes_written} bytes to serial port")
                     
                     # Wait for response with a timeout
                     start_time = time.time()
                     response = bytearray()
+                    last_read_time = start_time  # Track when we last received data
                     
                     # For Waveshare devices, we need to be more flexible with response formats
                     # Some devices don't strictly follow the Modbus protocol
                     expected_min_length = 4  # Minimum valid response (unit_id, function_code, at least 1 data byte, CRC)
                     expected_response_complete = False
                     
+                    # Diagnostic information for troubleshooting
+                    read_attempts = 0
+                    total_bytes_read = 0
+                    
+                    # Response collection loop with improved timeout handling
                     while (time.time() - start_time) < self.timeout:
+                        # Check for data with a small timeout to be responsive
                         if self.serial_conn.in_waiting > 0:
                             chunk = self.serial_conn.read(self.serial_conn.in_waiting)
-                            self.device_logger.debug(f"Read chunk: {chunk.hex()}")
-                            response.extend(chunk)
+                            chunk_size = len(chunk)
+                            total_bytes_read += chunk_size
+                            read_attempts += 1
+                            
+                            if chunk_size > 0:
+                                self.device_logger.debug(f"Read chunk ({read_attempts}): {chunk.hex()} ({chunk_size} bytes)")
+                                response.extend(chunk)
+                                last_read_time = time.time()  # Update last read time
                             
                             # Log the current response accumulation
                             self.device_logger.debug(f"Current response buffer: {response.hex()} (length: {len(response)})")
@@ -237,7 +288,7 @@ class ModbusRTU:
                                         expected_response_complete = True
                                         break
                                     # But for Waveshare, sometimes it's shorter
-                                    elif len(response) >= 3 and (time.time() - start_time) > (self.timeout * 0.7):
+                                    elif len(response) >= 3 and (time.time() - start_time) > (self.timeout * 0.6):
                                         self.device_logger.warning("Short exception response detected - Waveshare quirk")
                                         expected_response_complete = True
                                         break
@@ -254,7 +305,7 @@ class ModbusRTU:
                                     
                                     # Handle different function codes
                                     if actual_function_code in [READ_COILS, READ_DISCRETE_INPUTS, 0x41, 
-                                                             READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS]:
+                                                             READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS, 0x43, 0x44]:
                                         # For read functions, the response length is in the 3rd byte
                                         if len(response) >= 3:
                                             try:
@@ -265,7 +316,7 @@ class ModbusRTU:
                                                     break
                                                 # Special case for Waveshare: sometimes byte count is wrong
                                                 # If we've waited most of the timeout and have a reasonable response length
-                                                elif (time.time() - start_time) > (self.timeout * 0.8) and len(response) >= 5:
+                                                elif (time.time() - start_time) > (self.timeout * 0.7) and len(response) >= 5:
                                                     self.device_logger.warning(
                                                         "Response shorter than expected but accepting it (Waveshare quirk)"
                                                     )
@@ -273,7 +324,7 @@ class ModbusRTU:
                                                     break
                                             except IndexError:
                                                 self.device_logger.warning("Index error when checking response length")
-                                    elif actual_function_code in [WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER]:
+                                    elif actual_function_code in [WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER, 0x45, 0x46]:
                                         # For single write functions, response is normally 8 bytes
                                         # But for Waveshare, sometimes it's shorter
                                         expected_length = 8
@@ -282,7 +333,7 @@ class ModbusRTU:
                                             expected_response_complete = True
                                             break
                                         # Accept shorter responses after waiting
-                                        elif len(response) >= 4 and (time.time() - start_time) > (self.timeout * 0.7):
+                                        elif len(response) >= 4 and (time.time() - start_time) > (self.timeout * 0.6):
                                             self.device_logger.warning(
                                                 "Short write response detected - Waveshare quirk"
                                             )
@@ -296,7 +347,7 @@ class ModbusRTU:
                                             expected_response_complete = True
                                             break
                                         # Accept shorter responses after waiting
-                                        elif len(response) >= 4 and (time.time() - start_time) > (self.timeout * 0.7):
+                                        elif len(response) >= 4 and (time.time() - start_time) > (self.timeout * 0.6):
                                             self.device_logger.warning(
                                                 "Short write multiple response detected - Waveshare quirk"
                                             )
@@ -313,7 +364,7 @@ class ModbusRTU:
                                     # Special case for Waveshare: sometimes they send very short responses
                                     # If we've waited a bit and still have a partial response, check if it might be valid
                                     elapsed = time.time() - start_time
-                                    if elapsed > (self.timeout * 0.7) and len(response) >= 3:
+                                    if elapsed > (self.timeout * 0.6) and len(response) >= 3:
                                         self.device_logger.debug(
                                             f"Partial response after {elapsed:.2f}s: {response.hex()}. "
                                             f"Checking if it might be valid."
@@ -327,15 +378,44 @@ class ModbusRTU:
                                             expected_response_complete = True
                                             break
                         
+                        # Check for response timeout - if we haven't received data for a while
+                        # but we have some partial data, we might need to accept it
+                        elapsed_since_last_read = time.time() - last_read_time
+                        if len(response) > 0 and elapsed_since_last_read > (self.timeout * 0.5):
+                            self.device_logger.warning(
+                                f"No new data received for {elapsed_since_last_read:.2f}s but have partial response. "
+                                f"Considering response complete."
+                            )
+                            expected_response_complete = True
+                            break
+                            
                         # Short delay to prevent CPU hogging
-                        time.sleep(0.005)  # Reduced from 0.01 to be more responsive
+                        time.sleep(0.002)  # Reduced from 0.005 to be more responsive
                     
                     # Update last operation time
                     self._last_operation_time = time.time()
                     
+                    # Log diagnostic information
+                    elapsed = time.time() - start_time
+                    self.device_logger.debug(
+                        f"Response collection complete: {elapsed:.3f}s elapsed, "
+                        f"{read_attempts} read attempts, {total_bytes_read} total bytes read"
+                    )
+                    
                     # Check if we got a response
                     if len(response) == 0:
                         self.device_logger.warning(f"No response received from unit {unit_id}, function {function_code} (attempt {attempt+1}/{retry_count+1})")
+                        
+                        # Try a different approach for the next retry
+                        if attempt < retry_count:
+                            # For the next retry, try a different approach based on the attempt number
+                            if attempt == 0:
+                                self.device_logger.info("Next retry will use a longer timeout")
+                            elif attempt == 1:
+                                self.device_logger.info("Next retry will add extra delay before sending")
+                                # Add extra delay before next send
+                                time.sleep(0.1)
+                            
                         continue  # Try again if we have retries left
                     
                     # Check if the response is complete
@@ -347,12 +427,32 @@ class ModbusRTU:
                     
                     # Parse the response
                     self.device_logger.debug(f"Received response: {response.hex()}")
+                    
+                    # Validate response unit ID if it's not a broadcast
+                    if len(response) > 0 and unit_id != 0 and response[0] != unit_id:
+                        self.device_logger.warning(
+                            f"Unit ID mismatch in response: expected {unit_id}, got {response[0]}. "
+                            f"This could be a response from another device or a corrupted response."
+                        )
+                        # For Waveshare devices, we'll continue anyway
+                        # Some devices respond with different unit IDs
+                    
+                    # Check for common response errors
+                    if len(response) >= 3 and response[1] & 0x80:
+                        exception_code = response[2] if len(response) > 2 else 'unknown'
+                        self.device_logger.error(
+                            f"Modbus exception response: function {function_code}, code {exception_code}. "
+                            f"This indicates an error condition in the device."
+                        )
+                        # We'll return the exception response for proper handling
+                    
                     break  # Exit the retry loop with the response we got
                         
                 except serial.SerialException as e:
                     self.device_logger.error(f"Serial error: {e} (attempt {attempt+1}/{retry_count+1})")
                     # Try to reconnect
                     self.disconnect()
+                    time.sleep(0.5)  # Give the port time to release
                     if self.connect():
                         self.device_logger.info("Reconnected after serial error")
                     else:
@@ -360,10 +460,25 @@ class ModbusRTU:
                     continue  # Try again if we have retries left
                 except Exception as e:
                     self.device_logger.error(f"Error sending request: {e} (attempt {attempt+1}/{retry_count+1})")
+                    # Log traceback for debugging
+                    import traceback
+                    self.device_logger.debug(f"Exception traceback: {traceback.format_exc()}")
                     continue  # Try again if we have retries left
         
         # Restore original timeout
         self.timeout = original_timeout
+        
+        # Final diagnostic log
+        if response:
+            self.device_logger.info(
+                f"Successfully received response from unit {unit_id}, function {function_code}: "
+                f"{len(response)} bytes after {attempt+1} attempt(s)"
+            )
+        else:
+            self.device_logger.error(
+                f"Failed to get valid response from unit {unit_id}, function {function_code} "
+                f"after {retry_count+1} attempts"
+            )
         
         # Return the final response (or None if all attempts failed)
         return bytes(response) if response else None
@@ -823,10 +938,11 @@ class ModbusRTU:
         
     def _calculate_crc(self, data: bytes) -> int:
         """Calculate CRC16 for Modbus RTU (compatibility method)"""
-        return calculate_crc(data)
+        return crc.calculate_crc(data)
         
     def _build_request(self, unit_id: int, function_code: int, data: bytes = None) -> bytes:
         """Build a Modbus request (compatibility method)"""
+        from .protocol import build_request
         return build_request(unit_id, function_code, data)
         
     def _parse_response(self, response: bytes, unit_id: int = None, function_code: int = None, check_crc: bool = True) -> Union[bytes, None]:

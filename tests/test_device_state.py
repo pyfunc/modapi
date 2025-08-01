@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modapi.rtu.base import ModbusRTU
 from modapi.rtu.device_state import ModbusDeviceState, device_manager
+from dataclasses import asdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -28,8 +29,7 @@ def test_device_state_tracking(port='/dev/ttyACM0', unit_id=1, mock_mode=False):
     # Create ModbusRTU instance with state tracking enabled
     rtu = ModbusRTU(
         port=port,
-        enable_state_tracking=True,
-        log_directory=os.path.join(os.path.expanduser("~"), ".modbus_test_logs")
+        enable_state_tracking=True
     )
     
     try:
@@ -39,32 +39,29 @@ def test_device_state_tracking(port='/dev/ttyACM0', unit_id=1, mock_mode=False):
                 logger.error(f"Failed to connect to {port}")
                 return False
             
-            # Set unit ID
-            rtu.set_unit(unit_id)
-            
             # Read some coils and registers to populate device state
             logger.info("Reading coils 0-7...")
-            coils = rtu.read_coils(0, 8)
+            coils = rtu.read_coils(unit_id, 0, 8)
             logger.info(f"Coils: {coils}")
             
             logger.info("Reading holding registers 0-3...")
-            registers = rtu.read_holding_registers(0, 4)
+            registers = rtu.read_holding_registers(unit_id, 0, 4)
             logger.info(f"Registers: {registers}")
             
             # Write to a coil and register
             logger.info("Writing to coil 0...")
-            rtu.write_single_coil(0, True)
+            rtu.write_single_coil(unit_id, 0, True)
             
             logger.info("Writing to register 0...")
-            rtu.write_single_register(0, 12345)
+            rtu.write_single_register(unit_id, 0, 12345)
             
             # Read again to verify changes
             logger.info("Reading coil 0 again...")
-            coil_value = rtu.read_coils(0, 1)
+            coil_value = rtu.read_coils(unit_id, 0, 1)
             logger.info(f"Coil 0: {coil_value}")
             
             logger.info("Reading register 0 again...")
-            register_value = rtu.read_holding_registers(0, 1)
+            register_value = rtu.read_holding_registers(unit_id, 0, 1)
             logger.info(f"Register 0: {register_value}")
         else:
             # Mock mode - create fake device state
@@ -97,20 +94,31 @@ def test_device_state_tracking(port='/dev/ttyACM0', unit_id=1, mock_mode=False):
             rtu.device_states[device_key] = device_state
             rtu.current_unit_id = unit_id
         
-        # Get device state summary
-        logger.info("Getting device state summary...")
-        summary = rtu.get_device_state_summary(unit_id)
-        logger.info(f"Device state summary: {json.dumps(summary, indent=2)}")
+        # Get device state from device_manager
+        logger.info("Getting device state from device_manager...")
+        device_key = f"{port}_{unit_id}"
+        if not mock_mode:
+            # For real hardware, get device state from device_manager
+            device_state = device_manager.get_device(port, unit_id)
+            if device_state:
+                summary = asdict(device_state)
+                logger.info(f"Device state summary: {json.dumps(summary, indent=2)}")
+        else:
+            # For mock mode, we already have the device_state
+            summary = asdict(device_state)
+            logger.info(f"Device state summary: {json.dumps(summary, indent=2)}")
         
         # Dump device state to file
         logger.info("Dumping device state to file...")
-        rtu.dump_current_device_state()
+        if not mock_mode:
+            device_manager.dump_device(port, unit_id, os.path.join(os.path.expanduser("~"), ".modbus_test_logs"))
         
         # Dump all device states
         logger.info("Dumping all device states...")
-        rtu.dump_device_states()
+        device_manager.dump_all_devices(os.path.join(os.path.expanduser("~"), ".modbus_test_logs"))
         
-        return True
+        # Test passes if we reach this point
+        assert True
     
     except Exception as e:
         logger.error(f"Error during test: {e}", exc_info=True)

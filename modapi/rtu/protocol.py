@@ -8,7 +8,7 @@ import struct
 import sys
 from typing import Optional, List, Dict, Tuple, Any
 
-from .crc import calculate_crc, try_alternative_crcs
+from . import crc
 from modapi.config import (
     READ_COILS, READ_DISCRETE_INPUTS,
     READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
@@ -108,9 +108,9 @@ def build_request(unit_id: int, function_code: int, data: bytes) -> bytes:
     """
     # Build request: [unit_id, function_code, data, crc_low, crc_high]
     request = bytes([unit_id, function_code]) + data
-    crc = calculate_crc(request)
+    crc_value = crc.calculate_crc(request)
     # Append CRC in little-endian format (low byte first)
-    request += bytes([crc & 0xFF, (crc >> 8) & 0xFF])
+    request += bytes([crc_value & 0xFF, (crc_value >> 8) & 0xFF])
     
     logger.debug(f"Built request: {request.hex()}")
     return request
@@ -178,12 +178,12 @@ def parse_response(response: bytes, expected_function: int = None) -> Tuple[bool
     # Validate CRC if response is long enough
     result['crc_valid'] = False
     if len(response) >= 4:  # Minimum length for a response with CRC
-        is_valid_crc, crc_info = try_alternative_crcs(response)
+        is_valid_crc, crc_info = crc.try_alternative_crcs(response)
         result['crc_valid'] = is_valid_crc
         result['crc_info'] = crc_info
         
         if not is_valid_crc:
-            logger.warning(f"CRC validation failed for response: {response.hex()}")
+            logger.warning(f"CRC validation failed for response: {response.hex()}, method tried: {crc_info['method']}, difference: {crc_info['difference']}")
             
             # For Waveshare devices, we'll be more tolerant of CRC failures
             # Check if the response has a reasonable structure despite CRC failure
@@ -192,15 +192,13 @@ def parse_response(response: bytes, expected_function: int = None) -> Tuple[bool
             if function_code in (READ_COILS, READ_DISCRETE_INPUTS, 
                                READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
                                WAVESHARE_FUNC_READ_COILS):
-                # Check if response has a valid structure (unit_id, function_code, byte_count, data, crc)
-                if len(response) >= 3:
-                    # If the byte count field exists and seems reasonable
-                    if response[2] <= len(response) - 5 or len(response) >= 5:
-                        logger.warning("Continuing despite CRC error - response structure appears valid")
-                    else:
-                        # For test environment, return None on CRC failure
-                        if "pytest" in sys.modules:
-                            return False, {'error': 'CRC validation failed in test environment', 'response_hex': response.hex()}
+                # Check if response has a valid structure for read operations
+                if len(response) >= 4 and response[2] > 0:  # Has byte count
+                    logger.warning("Continuing despite CRC error for read operation - response structure appears valid")
+                else:
+                    # For test environment, return None on CRC failure
+                    if "pytest" in sys.modules:
+                        return False, {'error': 'CRC validation failed in test environment', 'response_hex': response.hex()}
             
             # For write operations
             elif function_code in (WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
