@@ -241,11 +241,11 @@ def detect_device_type(port: str, baudrate: int, unit_id: int) -> Optional[str]:
         return None
 
 
-def test_rtu_connection(port: str, baudrate: int = DEFAULT_BAUDRATE, timeout: float = 0.5, unit_id: int = 1) -> Dict[str, Any]:
+def test_rtu_connection(port: str, baudrate: int = DEFAULT_BAUDRATE, timeout: float = DEFAULT_TIMEOUT, unit_id: int = DEFAULT_UNIT_ID) -> Tuple[bool, Dict[str, Any]]:
     """
     Test connection to a Modbus RTU device
     
-    This is a convenience function that uses test_modbus_port and returns a more detailed result.
+    This is a convenience function that uses ModbusRTU to test the connection.
     
     Args:
         port: Serial port path
@@ -254,42 +254,38 @@ def test_rtu_connection(port: str, baudrate: int = DEFAULT_BAUDRATE, timeout: fl
         unit_id: Unit ID to test
         
     Returns:
-        Dict[str, Any]: Connection status and configuration
+        Tuple[bool, Dict[str, Any]]: Success flag and connection status/configuration
     """
+    # Import here to avoid circular imports
+    import modapi.api.rtu
+    
     result = {
         'port': port,
         'baudrate': baudrate,
         'unit_id': unit_id,
         'success': False,
+        'connected': False,
         'error': None,
         'device_type': None
     }
     
     try:
-        # First try the test_modbus_port function
-        if test_modbus_port(port, baudrate, 1.0, unit_id):
-            result['success'] = True
-            result['device_type'] = detect_device_type(port, baudrate, unit_id) or "Unknown Modbus RTU Device"
-            return True, result
+        # Create a ModbusRTU instance to test the connection
+        with modapi.api.rtu.ModbusRTU(port=port, baudrate=baudrate, timeout=timeout) as rtu:
+            # Use the test_connection method of ModbusRTU
+            success, test_result = rtu.test_connection(unit_id)
             
-        # If that fails, try a more direct approach
-        with serial.Serial(port, baudrate, timeout=1.0) as ser:
-            # Try to read a coil (function code 0x01)
-            request = bytes([unit_id, 0x01, 0x00, 0x00, 0x00, 0x01])
-            crc = calculate_crc(request)
-            request += bytes([crc & 0xFF, (crc >> 8) & 0xFF])
+            # Update our result with the test_connection result
+            result['success'] = success
+            result['connected'] = success  # Ensure 'connected' key is set for test compatibility
             
-            ser.write(request)
-            response = ser.read(100)
-            
-            if len(response) > 0:
-                result['success'] = True
+            # If connection was successful, try to detect the device type
+            if success:
                 result['device_type'] = detect_device_type(port, baudrate, unit_id) or "Unknown Modbus RTU Device"
-                return True, result
+                
+            return success, result
                 
     except Exception as e:
         result['error'] = str(e)
         logger.error(f"Error testing RTU connection on port {port}: {e}")
         return False, result
-        
-    return False, result

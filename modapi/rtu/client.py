@@ -8,25 +8,22 @@ import time
 from typing import List, Optional, Dict, Any, Tuple, Union
 
 from .base import ModbusRTU
-from modapi.config import BAUDRATES, AUTO_DETECT_UNIT_IDS
+from modapi.config import (
+    DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID,
+    DEFAULT_RS485_DELAY, HIGHEST_PRIORITIZED_BAUDRATE,
+    BAUDRATES, AUTO_DETECT_UNIT_IDS,
+    READ_COILS, READ_DISCRETE_INPUTS,
+    READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
+    WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+    WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS
+)
 from .protocol import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
     build_read_request, build_write_single_coil_request,
     build_write_single_register_request, build_write_multiple_coils_request,
-    build_write_multiple_registers_request, parse_read_coils_response,
-    parse_read_registers_response, parse_response
+    build_write_multiple_registers_request, build_set_baudrate_request,
+    parse_read_coils_response, parse_read_registers_response, parse_response
 )
 from .utils import find_serial_ports, test_modbus_port, scan_for_devices, detect_device_type
-from modapi.config import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
-    BAUDRATES, PRIORITIZED_BAUDRATES
-)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +36,7 @@ class ModbusRTUClient(ModbusRTU):
     """
     
     def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, 
-                 timeout: float = 1.0, rs485_delay: float = 0.2):
+                 timeout: float = 1.0, rs485_delay: float = DEFAULT_RS485_DELAY):
         """
         Initialize Modbus RTU client
         
@@ -47,7 +44,7 @@ class ModbusRTUClient(ModbusRTU):
             port: Serial port path (default: /dev/ttyACM0)
             baudrate: Baud rate (default: 57600)
             timeout: Read timeout in seconds (default: 1.0)
-            rs485_delay: Delay between RS485 operations in seconds (default: 0.2)
+            rs485_delay: Delay between RS485 operations in seconds (default: from config.DEFAULT_RS485_DELAY)
         """
         super().__init__(port=port, baudrate=baudrate, timeout=timeout, rs485_delay=rs485_delay)
         logger.info(f"Initialized Modbus RTU client on {port} at {baudrate} baud with RS485 delay {rs485_delay}s")
@@ -206,7 +203,7 @@ class ModbusRTUClient(ModbusRTU):
     
     def write_registers(self, address: int, values: List[int], unit_id: int = 1) -> bool:
         """
-        Write multiple registers
+        Write multiple register values
         
         Args:
             address: Starting address
@@ -214,7 +211,7 @@ class ModbusRTUClient(ModbusRTU):
             unit_id: Unit ID
             
         Returns:
-            bool: True if successful
+            bool: True if successful, False otherwise
         """
         if not self.is_connected() and not self.connect():
             return False
@@ -223,6 +220,75 @@ class ModbusRTUClient(ModbusRTU):
         response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_REGISTERS)
         
         return response is not None
+        
+    def set_device_baudrate(self, baudrate: int = None, unit_id: int = 0) -> bool:
+        """
+        Set the device's internal baudrate using the Waveshare protocol.
+        
+        This sends a command to register 0x2000 with the appropriate baudrate code.
+        After setting the baudrate, the device will use that baudrate for future
+        communications, so the host should reconnect at the new baudrate.
+        
+        Args:
+            baudrate: Baudrate to set (if None, uses the highest prioritized baudrate from config)
+            unit_id: Unit ID to set baudrate for (default: 0 for broadcast)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        # If no baudrate specified, use the highest prioritized baudrate from config
+        if baudrate is None:
+            baudrate = HIGHEST_PRIORITIZED_BAUDRATE
+            logger.info(f"Using highest prioritized baudrate from config: {baudrate}")
+        else:
+            logger.info(f"Using specified baudrate: {baudrate}")
+            
+        # Load baudrate mapping
+        import json
+        import os
+        from modapi.config import CONFIG_DIR
+        
+        try:
+            with open(os.path.join(CONFIG_DIR, 'baudrates.json'), 'r') as f:
+                baudrate_map = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load baudrate mapping: {e}")
+            return False
+            
+        # Convert baudrate to string for dictionary lookup
+        baudrate_str = str(baudrate)
+        
+        # Check if our baudrate is in the mapping
+        if baudrate_str not in baudrate_map:
+            logger.warning(f"Baudrate {baudrate} not found in mapping, cannot set device baudrate")
+            return False
+            
+        # Get the baudrate code from the mapping
+        baudrate_code = baudrate_map[baudrate_str]
+        
+        if not self.is_connected() and not self.connect():
+            return False
+        
+        logger.info(f"Setting device baudrate to {baudrate} (code: {baudrate_code})")
+        request = build_set_baudrate_request(unit_id, baudrate_code)
+        
+        # For broadcast messages (unit_id=0), we don't expect a response
+        if unit_id == 0:
+            self._enforce_rs485_delay()  # Ensure proper timing
+            self.serial_conn.write(request)
+            logger.info("Sent broadcast baudrate change command (no response expected)")
+            return True
+        
+        # For directed messages, we expect a response
+        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_REGISTER)
+        success = response is not None
+        
+        if success:
+            logger.info(f"Successfully set device baudrate to {baudrate}")
+        else:
+            logger.warning(f"Failed to set device baudrate to {baudrate}")
+            
+        return success
     
     def send_raw_request(self, request: bytes, expected_unit: int, expected_function: int) -> Optional[bytes]:
         """

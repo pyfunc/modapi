@@ -12,17 +12,17 @@ from modapi.rtu import ModbusRTU
 from modapi.__main__ import auto_detect_modbus_port
 from modapi.config import (
     DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID,
-    BAUDRATES, PRIORITIZED_BAUDRATES, AUTO_DETECT_UNIT_IDS,
-    FUNC_READ_COILS, FUNC_WRITE_SINGLE_COIL,
+    BAUDRATES, PRIORITIZED_BAUDRATES, HIGHEST_PRIORITIZED_BAUDRATE, AUTO_DETECT_UNIT_IDS,
+    READ_COILS, WRITE_SINGLE_COIL,
     get_config_value, _load_constants
 )
 import time
 
 from modapi.config import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
+    READ_COILS, READ_DISCRETE_INPUTS,
+    READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
+    WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+    WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS,
     BAUDRATES, PRIORITIZED_BAUDRATES
 )
 # Konfiguracja logowania
@@ -219,7 +219,8 @@ def auto_detect():
     
     for port in ports:
         logger.info(f"Checking port: {port}")
-        result = auto_detect_modbus_port(debug=True, unit_id=None)
+        # Explicitly pass PRIORITIZED_BAUDRATES to ensure we use the correct order
+        result = auto_detect_modbus_port(baudrates=PRIORITIZED_BAUDRATES, debug=True, unit_id=None)
         if result:
             logger.info(f"✅ Found Modbus device on {result['port']} at {result['baudrate']} baud")
             return result
@@ -275,6 +276,25 @@ def init_rtu():
     
     if RTU_CONFIG:
         logger.info(f"✅ Znaleziono działającą konfigurację RTU: {RTU_CONFIG}")
+        
+        # Try to switch to higher baudrate after successful connection
+        if HIGHEST_PRIORITIZED_BAUDRATE > RTU_CONFIG['baudrate']:
+            logger.info(f"Próbuję przełączyć na wyższą prędkość: {HIGHEST_PRIORITIZED_BAUDRATE} baud")
+            try:
+                # Create a client with the detected configuration
+                client = ModbusRTU(port=RTU_CONFIG['port'], baudrate=RTU_CONFIG['baudrate'])
+                if client.connect():
+                    # Try to switch the device to the highest prioritized baudrate
+                    if client.set_device_baudrate(unit_id=RTU_CONFIG['unit_id']):
+                        logger.info(f"✅ Przełączono urządzenie na {HIGHEST_PRIORITIZED_BAUDRATE} baud")
+                        # Update the configuration with the new baudrate
+                        RTU_CONFIG['baudrate'] = HIGHEST_PRIORITIZED_BAUDRATE
+                    else:
+                        logger.warning(f"⚠️ Nie udało się przełączyć na {HIGHEST_PRIORITIZED_BAUDRATE} baud, pozostaję na {RTU_CONFIG['baudrate']}")
+                    client.disconnect()
+            except Exception as e:
+                logger.error(f"❌ Błąd podczas przełączania prędkości: {e}")
+        
         return True
     else:
         logger.error("❌ Nie znaleziono działającej konfiguracji RTU!")

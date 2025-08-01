@@ -10,10 +10,10 @@ from typing import Optional, List, Dict, Tuple
 
 from .crc import calculate_crc, try_alternative_crcs
 from modapi.config import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS
+    READ_COILS, READ_DISCRETE_INPUTS,
+    READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
+    WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+    WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS
 )
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,6 @@ EXCEPTION_ILLEGAL_VALUE = 0x03
 EXCEPTION_DEVICE_FAILURE = 0x04
 EXCEPTION_ACKNOWLEDGE = 0x05
 EXCEPTION_DEVICE_BUSY = 0x06
-EXCEPTION_MEMORY_PARITY_ERROR = 0x08
-EXCEPTION_GATEWAY_PATH_UNAVAILABLE = 0x0A
-EXCEPTION_GATEWAY_TARGET_FAILED = 0x0B
 
 # Exception code descriptions
 EXCEPTION_DESCRIPTIONS = {
@@ -40,31 +37,45 @@ EXCEPTION_DESCRIPTIONS = {
     EXCEPTION_ILLEGAL_VALUE: "Illegal data value",
     EXCEPTION_DEVICE_FAILURE: "Device failure",
     EXCEPTION_ACKNOWLEDGE: "Acknowledge",
-    EXCEPTION_DEVICE_BUSY: "Device busy",
-    EXCEPTION_MEMORY_PARITY_ERROR: "Memory parity error",
-    EXCEPTION_GATEWAY_PATH_UNAVAILABLE: "Gateway path unavailable",
-    EXCEPTION_GATEWAY_TARGET_FAILED: "Gateway target device failed to respond"
+    EXCEPTION_DEVICE_BUSY: "Device busy"
 }
 
-# Function code compatibility mapping for Waveshare devices
-COMPATIBLE_FUNCTION_CODES = [
-    # Standard Modbus compatible pairs
-    (FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS),
+# Function code compatibility mappings
+# Maps (actual, expected) function code pairs that should be considered compatible
+FUNCTION_CODE_COMPATIBILITY = [
+    # Standard function codes
+    (READ_COILS, READ_COILS),
+    (READ_DISCRETE_INPUTS, READ_DISCRETE_INPUTS),
+    (READ_HOLDING_REGISTERS, READ_HOLDING_REGISTERS),
+    (READ_INPUT_REGISTERS, READ_INPUT_REGISTERS),
+    (WRITE_SINGLE_COIL, WRITE_SINGLE_COIL),
+    (WRITE_SINGLE_REGISTER, WRITE_SINGLE_REGISTER),
+    (WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_COILS),
+    (WRITE_MULTIPLE_REGISTERS, WRITE_MULTIPLE_REGISTERS),
+    
+    # Register read aliases (some devices mix these up)
+    (READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS),
+    (READ_INPUT_REGISTERS, READ_HOLDING_REGISTERS),
+    
     # Waveshare-specific mappings
-    (WAVESHARE_FUNC_READ_COILS, FUNC_READ_COILS),
-    (FUNC_READ_COILS, WAVESHARE_FUNC_READ_COILS),
-    (0x00, FUNC_READ_COILS),  # Some Waveshare devices respond with 0x00
-    (0x00, FUNC_READ_DISCRETE_INPUTS),
-    (0x00, FUNC_READ_HOLDING_REGISTERS),
-    (0x00, FUNC_READ_INPUT_REGISTERS),
-    # Add mappings for read/write operations that might be confused
-    (FUNC_READ_COILS, FUNC_WRITE_SINGLE_COIL),
-    (FUNC_WRITE_SINGLE_COIL, FUNC_READ_COILS),
-    (FUNC_READ_HOLDING_REGISTERS, FUNC_WRITE_SINGLE_REGISTER),
-    (FUNC_WRITE_SINGLE_REGISTER, FUNC_READ_HOLDING_REGISTERS),
-    # Add mapping for Waveshare flash coil function
-    (WAVESHARE_FUNC_FLASH_COIL, FUNC_WRITE_SINGLE_COIL),
-    (FUNC_WRITE_SINGLE_COIL, WAVESHARE_FUNC_FLASH_COIL),
+    (WAVESHARE_FUNC_READ_COILS, READ_COILS),
+    (READ_COILS, WAVESHARE_FUNC_READ_COILS),
+    
+    # Some devices respond with 0x00 instead of the actual function code
+    (0x00, READ_COILS),  # Some Waveshare devices respond with 0x00
+    (0x00, READ_DISCRETE_INPUTS),
+    (0x00, READ_HOLDING_REGISTERS),
+    (0x00, READ_INPUT_REGISTERS),
+    
+    # Some devices mix up read and write function codes
+    (READ_COILS, WRITE_SINGLE_COIL),
+    (WRITE_SINGLE_COIL, READ_COILS),
+    (READ_HOLDING_REGISTERS, WRITE_SINGLE_REGISTER),
+    (WRITE_SINGLE_REGISTER, READ_HOLDING_REGISTERS),
+    
+    # Waveshare flash coil mapping
+    (WAVESHARE_FUNC_FLASH_COIL, WRITE_SINGLE_COIL),
+    (WRITE_SINGLE_COIL, WAVESHARE_FUNC_FLASH_COIL),
 ]
 
 def build_request(unit_id: int, function_code: int, data: bytes) -> bytes:
@@ -136,8 +147,8 @@ def parse_response(response: bytes, expected_unit: int, expected_function: int) 
         # Check if the response has a reasonable structure despite CRC failure
         
         # For read operations
-        if function_code in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS, 
-                           FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS):
+        if function_code in (READ_COILS, READ_DISCRETE_INPUTS, 
+                           READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS):
             # Check if response has a valid structure (unit_id, function_code, byte_count, data, crc)
             if len(response) >= 3:
                 # If the byte count field exists and seems reasonable
@@ -149,8 +160,8 @@ def parse_response(response: bytes, expected_unit: int, expected_function: int) 
                         return None
         
         # For write operations
-        elif function_code in (FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-                             FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS):
+        elif function_code in (WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+                             WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS):
             # Check if response has a valid structure for write operations
             if len(response) >= 6:  # Minimum length for write response
                 logger.warning("Continuing despite CRC error for write operation - response structure appears valid")
@@ -185,8 +196,8 @@ def parse_response(response: bytes, expected_unit: int, expected_function: int) 
         
         # Special handling for read/write coil function code mismatches (01 and 05)
         # This is a common issue with Waveshare devices
-        if (expected_function == FUNC_READ_COILS and function_code == FUNC_WRITE_SINGLE_COIL) or \
-           (expected_function == FUNC_WRITE_SINGLE_COIL and function_code == FUNC_READ_COILS):
+        if (expected_function == READ_COILS and function_code == WRITE_SINGLE_COIL) or \
+           (expected_function == WRITE_SINGLE_COIL and function_code == READ_COILS):
             logger.info(f"Handling special case for read/write coil function code mismatch: {expected_function} and {function_code}")
             is_compatible = True
         
@@ -196,7 +207,7 @@ def parse_response(response: bytes, expected_unit: int, expected_function: int) 
             logger.error(f"Incompatible function codes: {expected_function:02X} and {function_code:02X}")
             
         # For write operations with mismatched function codes, handle specially
-        if expected_function in (FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER) and \
+        if expected_function in (WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER) and \
            len(response) >= 6:  # Minimum length for write response
             # The response should be an echo of the request
             # Return the response data without the CRC (first 2 bytes are unit_id and function_code)
@@ -333,7 +344,7 @@ def build_write_single_coil_request(unit_id: int, address: int, value: bool) -> 
     # Value is 0xFF00 for ON, 0x0000 for OFF
     coil_value = 0xFF00 if value else 0x0000
     data = struct.pack('>HH', address, coil_value)
-    return build_request(unit_id, FUNC_WRITE_SINGLE_COIL, data)
+    return build_request(unit_id, WRITE_SINGLE_COIL, data)
 
 def build_write_single_register_request(unit_id: int, address: int, value: int) -> bytes:
     """
@@ -349,7 +360,7 @@ def build_write_single_register_request(unit_id: int, address: int, value: int) 
     """
     # Data format: [address_high, address_low, value_high, value_low]
     data = struct.pack('>HH', address, value)
-    return build_request(unit_id, FUNC_WRITE_SINGLE_REGISTER, data)
+    return build_request(unit_id, WRITE_SINGLE_REGISTER, data)
 
 def build_write_multiple_coils_request(unit_id: int, address: int, values: List[bool]) -> bytes:
     """
@@ -376,7 +387,7 @@ def build_write_multiple_coils_request(unit_id: int, address: int, values: List[
     
     # Data format: [address_high, address_low, count_high, count_low, byte_count, coil_bytes]
     data = struct.pack('>HHB', address, count, byte_count) + coil_bytes
-    return build_request(unit_id, FUNC_WRITE_MULTIPLE_COILS, data)
+    return build_request(unit_id, WRITE_MULTIPLE_COILS, data)
 
 def build_write_multiple_registers_request(unit_id: int, address: int, values: List[int]) -> bytes:
     """
@@ -399,5 +410,31 @@ def build_write_multiple_registers_request(unit_id: int, address: int, values: L
         register_bytes.extend(struct.pack('>H', value))
     
     # Data format: [address_high, address_low, count_high, count_low, byte_count, register_bytes]
-    data = struct.pack('>HHB', address, count, byte_count) + bytes(register_bytes)
-    return build_request(unit_id, FUNC_WRITE_MULTIPLE_REGISTERS, data)
+    data = struct.pack('>HHB', address, count, byte_count) + register_bytes
+    return build_request(unit_id, WRITE_MULTIPLE_REGISTERS, data)
+
+def build_set_baudrate_request(unit_id: int, baudrate_code: int, parity: int = 0) -> bytes:
+    """
+    Build request to set device baudrate according to Waveshare protocol
+    
+    Args:
+        unit_id: Slave unit ID (use 0 for broadcast)
+        baudrate_code: Baudrate code according to Waveshare protocol:
+                      0x00: 4800
+                      0x01: 9600
+                      0x02: 19200
+                      0x03: 38400
+                      0x04: 57600
+                      0x05: 115200
+                      0x06: 128000
+                      0x07: 256000
+        parity: Parity setting (0: none, 1: even, 2: odd)
+        
+    Returns:
+        bytes: Request data
+    """
+    # Command format: [unit_id, 0x06, 0x20, 0x00, parity, baudrate_code, crc_low, crc_high]
+    # 0x06 is the function code for write single register
+    # 0x2000 is the command register for setting baudrate
+    data = struct.pack('>HBB', 0x2000, parity, baudrate_code)
+    return build_request(unit_id, WRITE_SINGLE_REGISTER, data)

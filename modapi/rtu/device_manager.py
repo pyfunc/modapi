@@ -12,10 +12,10 @@ from typing import Dict, List, Optional, Any, Union
 from .device_state import ModbusDeviceState, device_manager
 from .protocol import parse_read_coils_response, parse_read_registers_response
 from modapi.config import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS
+    READ_COILS, READ_DISCRETE_INPUTS,
+    READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
+    WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+    WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS
 )
 
 logger = logging.getLogger(__name__)
@@ -44,14 +44,14 @@ def get_or_create_device_state(rtu_instance, unit_id: int) -> Optional[ModbusDev
 def get_request_type(function_code: int) -> str:
     """Get human-readable request type from function code"""
     function_names = {
-        FUNC_READ_COILS: "READ_COILS",
-        FUNC_READ_DISCRETE_INPUTS: "READ_DISCRETE_INPUTS",
-        FUNC_READ_HOLDING_REGISTERS: "READ_HOLDING_REGISTERS",
-        FUNC_READ_INPUT_REGISTERS: "READ_INPUT_REGISTERS",
-        FUNC_WRITE_SINGLE_COIL: "WRITE_SINGLE_COIL",
-        FUNC_WRITE_SINGLE_REGISTER: "WRITE_SINGLE_REGISTER",
-        FUNC_WRITE_MULTIPLE_COILS: "WRITE_MULTIPLE_COILS",
-        FUNC_WRITE_MULTIPLE_REGISTERS: "WRITE_MULTIPLE_REGISTERS"
+        READ_COILS: "READ_COILS",
+        READ_DISCRETE_INPUTS: "READ_DISCRETE_INPUTS",
+        READ_HOLDING_REGISTERS: "READ_HOLDING_REGISTERS",
+        READ_INPUT_REGISTERS: "READ_INPUT_REGISTERS",
+        WRITE_SINGLE_COIL: "WRITE_SINGLE_COIL",
+        WRITE_SINGLE_REGISTER: "WRITE_SINGLE_REGISTER",
+        WRITE_MULTIPLE_COILS: "WRITE_MULTIPLE_COILS",
+        WRITE_MULTIPLE_REGISTERS: "WRITE_MULTIPLE_REGISTERS"
     }
     return function_names.get(function_code, f"UNKNOWN({function_code})")
 
@@ -74,7 +74,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                                      logger=None) -> None:
     """Update device state based on response data"""
     try:
-        if function_code == FUNC_READ_COILS:
+        if function_code == READ_COILS:
             # Parse coil values
             values = parse_read_coils_response(data)
             if values is not None:
@@ -82,7 +82,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                 if logger:
                     logger.debug(f"Updated {len(values)} coils starting at {address}")
                 
-        elif function_code == FUNC_READ_DISCRETE_INPUTS:
+        elif function_code == READ_DISCRETE_INPUTS:
             # Parse discrete input values
             values = parse_read_coils_response(data)  # Same parsing as coils
             if values is not None:
@@ -90,7 +90,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                 if logger:
                     logger.debug(f"Updated {len(values)} discrete inputs starting at {address}")
                 
-        elif function_code == FUNC_READ_HOLDING_REGISTERS:
+        elif function_code == READ_HOLDING_REGISTERS:
             # Parse holding register values
             values = parse_read_registers_response(data)
             if values is not None:
@@ -98,7 +98,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                 if logger:
                     logger.debug(f"Updated {len(values)} holding registers starting at {address}")
                 
-        elif function_code == FUNC_READ_INPUT_REGISTERS:
+        elif function_code == READ_INPUT_REGISTERS:
             # Parse input register values
             values = parse_read_registers_response(data)
             if values is not None:
@@ -106,7 +106,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                 if logger:
                     logger.debug(f"Updated {len(values)} input registers starting at {address}")
                 
-        elif function_code == FUNC_WRITE_SINGLE_COIL:
+        elif function_code == WRITE_SINGLE_COIL:
             # Extract value from write response
             if len(data) >= 2:
                 value = (data[0] << 8 | data[1]) == 0xFF00  # 0xFF00 = ON, 0x0000 = OFF
@@ -114,7 +114,7 @@ def update_device_state_from_response(device_state: ModbusDeviceState,
                 if logger:
                     logger.debug(f"Updated coil {address} to {value}")
                 
-        elif function_code == FUNC_WRITE_SINGLE_REGISTER:
+        elif function_code == WRITE_SINGLE_REGISTER:
             # Extract value from write response
             if len(data) >= 2:
                 value = data[0] << 8 | data[1]

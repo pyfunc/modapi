@@ -26,11 +26,11 @@ from .device_manager import (
     get_device_state_summary
 )
 from modapi.config import (
-    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
-    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
-    BAUDRATES, PRIORITIZED_BAUDRATES, DEFAULT_RS485_DELAY
+    READ_COILS, READ_DISCRETE_INPUTS,
+    READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS,
+    WRITE_SINGLE_COIL, WRITE_SINGLE_REGISTER,
+    WRITE_MULTIPLE_COILS, WRITE_MULTIPLE_REGISTERS,
+    BAUDRATES, PRIORITIZED_BAUDRATES, DEFAULT_RS485_DELAY, HIGHEST_PRIORITIZED_BAUDRATE
 )
 
 logger = logging.getLogger(__name__)
@@ -70,15 +70,13 @@ class ModbusRTU:
         """
         self.port = port
         
-        # Use highest baudrate by default (prioritize from config)
+        # Use highest prioritized baudrate by default (from config)
         if baudrate is None:
-            if PRIORITIZED_BAUDRATES and len(PRIORITIZED_BAUDRATES) > 0:
-                self.baudrate = max(PRIORITIZED_BAUDRATES)
-            else:
-                self.baudrate = max(BAUDRATES)
-            logger.info(f"Using highest baudrate: {self.baudrate}")
+            self.baudrate = HIGHEST_PRIORITIZED_BAUDRATE
+            logger.info(f"Using highest prioritized baudrate from config: {self.baudrate}")
         else:
             self.baudrate = baudrate
+            logger.info(f"Using specified baudrate: {self.baudrate}")
             
         self.timeout = timeout
         self.parity = parity
@@ -165,14 +163,14 @@ class ModbusRTU:
     def _init_function_codes(self):
         """Initialize function code constants from config"""
         # Modbus function codes - use the ones from config
-        self.FUNC_READ_COILS = FUNC_READ_COILS
-        self.FUNC_READ_DISCRETE_INPUTS = FUNC_READ_DISCRETE_INPUTS
-        self.FUNC_READ_HOLDING_REGISTERS = FUNC_READ_HOLDING_REGISTERS
-        self.FUNC_READ_INPUT_REGISTERS = FUNC_READ_INPUT_REGISTERS
-        self.FUNC_WRITE_SINGLE_COIL = FUNC_WRITE_SINGLE_COIL
-        self.FUNC_WRITE_SINGLE_REGISTER = FUNC_WRITE_SINGLE_REGISTER
-        self.FUNC_WRITE_MULTIPLE_COILS = FUNC_WRITE_MULTIPLE_COILS
-        self.FUNC_WRITE_MULTIPLE_REGISTERS = FUNC_WRITE_MULTIPLE_REGISTERS
+        self.READ_COILS = READ_COILS
+        self.READ_DISCRETE_INPUTS = READ_DISCRETE_INPUTS
+        self.READ_HOLDING_REGISTERS = READ_HOLDING_REGISTERS
+        self.READ_INPUT_REGISTERS = READ_INPUT_REGISTERS
+        self.WRITE_SINGLE_COIL = WRITE_SINGLE_COIL
+        self.WRITE_SINGLE_REGISTER = WRITE_SINGLE_REGISTER
+        self.WRITE_MULTIPLE_COILS = WRITE_MULTIPLE_COILS
+        self.WRITE_MULTIPLE_REGISTERS = WRITE_MULTIPLE_REGISTERS
         
         logger.info(f"Initialized ModbusRTU for {self.port} at {self.baudrate} baud")
     
@@ -212,6 +210,9 @@ class ModbusRTU:
                 
                 if self.serial_conn.is_open:
                     logger.info(f"Connected to {self.port}")
+                    # After successful connection, set the device baudrate to match the configured value
+                    # This ensures the device's internal baudrate setting matches our connection baudrate
+                    self.set_device_baudrate()
                     return True
                 else:
                     logger.error(f"Failed to open {self.port}")
@@ -292,14 +293,100 @@ class ModbusRTU:
         # Update last operation time
         self._last_operation_time = time.time()
         
+    def set_device_baudrate(self, unit_id: int = 0) -> bool:
+        """
+        Set the device's internal baudrate to match the configured baudrate.
+        This is done after connecting to ensure the device's internal setting
+        matches our connection baudrate.
+        
+        According to Waveshare documentation, this requires sending a specific
+        Modbus command to register 0x2000 with the appropriate baudrate code.
+        
+        Args:
+            unit_id: Unit ID to set baudrate for (default: 0 for broadcast)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        from .protocol import build_set_baudrate_request
+        import json
+        import os
+        from modapi.config import CONFIG_DIR
+        
+        if not self.is_connected():
+            logger.error("Cannot set baudrate: not connected")
+            return False
+            
+        # Load baudrate mapping from baudrates.json
+        try:
+            with open(os.path.join(CONFIG_DIR, 'baudrates.json'), 'r') as f:
+                baudrate_map = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load baudrate mapping: {e}")
+            return False
+            
+        # Convert baudrate to string for dictionary lookup
+        baudrate_str = str(self.baudrate)
+        
+        # Check if our baudrate is in the mapping
+        if baudrate_str not in baudrate_map:
+            logger.warning(f"Baudrate {self.baudrate} not found in mapping, cannot set device baudrate")
+            return False
+            
+        # Get the baudrate code from the mapping
+        baudrate_code = baudrate_map[baudrate_str]
+        
+        try:
+            # Build the set baudrate request
+            request = build_set_baudrate_request(unit_id, baudrate_code)
+            
+            # Send the request
+            logger.info(f"Setting device baudrate to {self.baudrate} (code: {baudrate_code})")
+            self._enforce_rs485_delay()  # Ensure proper timing
+            self.serial_conn.write(request)
+            
+            # Wait for response with a timeout
+            timeout = self.timeout
+            start_time = time.time()
+            response = bytearray()
+            
+            while (time.time() - start_time) < timeout:
+                if self.serial_conn.in_waiting > 0:
+                    chunk = self.serial_conn.read(self.serial_conn.in_waiting)
+                    response.extend(chunk)
+                    # If we have enough bytes for a response, break
+                    if len(response) >= 8:  # Minimum response length
+                        break
+                time.sleep(0.01)  # Short delay to prevent CPU hogging
+                
+            # Update last operation time
+            self._last_operation_time = time.time()
+            
+            # Log the response
+            if response:
+                logger.info(f"Received response to baudrate change: {response.hex()}")
+                return True
+            else:
+                # No response is expected for broadcast (unit_id=0)
+                if unit_id == 0:
+                    logger.info("No response expected for broadcast baudrate change")
+                    return True
+                else:
+                    logger.warning("No response received to baudrate change request")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Error setting device baudrate: {e}")
+            return False
+        
     # High-level API methods for compatibility
     def read_coils(self, unit_id: int, address: int, count: int) -> Optional[List[bool]]:
         """Read coil states"""
         if not self.is_connected() and not self.connect():
             return None
             
-        request = build_read_request(unit_id, FUNC_READ_COILS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_COILS)
+        request = build_read_request(unit_id, READ_COILS, address, count)
+        response = self.send_request(request, unit_id, READ_COILS)
         
         if response is None:
             return None
@@ -311,8 +398,8 @@ class ModbusRTU:
         if not self.is_connected() and not self.connect():
             return None
             
-        request = build_read_request(unit_id, FUNC_READ_DISCRETE_INPUTS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_DISCRETE_INPUTS)
+        request = build_read_request(unit_id, READ_DISCRETE_INPUTS, address, count)
+        response = self.send_request(request, unit_id, READ_DISCRETE_INPUTS)
         
         if response is None:
             return None
@@ -324,8 +411,8 @@ class ModbusRTU:
         if not self.is_connected() and not self.connect():
             return None
             
-        request = build_read_request(unit_id, FUNC_READ_HOLDING_REGISTERS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_HOLDING_REGISTERS)
+        request = build_read_request(unit_id, READ_HOLDING_REGISTERS, address, count)
+        response = self.send_request(request, unit_id, READ_HOLDING_REGISTERS)
         
         if response is None:
             return None
@@ -337,8 +424,8 @@ class ModbusRTU:
         if not self.is_connected() and not self.connect():
             return None
             
-        request = build_read_request(unit_id, FUNC_READ_INPUT_REGISTERS, address, count)
-        response = self.send_request(request, unit_id, FUNC_READ_INPUT_REGISTERS)
+        request = build_read_request(unit_id, READ_INPUT_REGISTERS, address, count)
+        response = self.send_request(request, unit_id, READ_INPUT_REGISTERS)
         
         if response is None:
             return None
@@ -351,7 +438,7 @@ class ModbusRTU:
             return False
             
         request = build_write_single_coil_request(unit_id, address, value)
-        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_COIL)
+        response = self.send_request(request, unit_id, WRITE_SINGLE_COIL)
         
         return response is not None
         
@@ -361,7 +448,7 @@ class ModbusRTU:
             return False
             
         request = build_write_single_register_request(unit_id, address, value)
-        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_REGISTER)
+        response = self.send_request(request, unit_id, WRITE_SINGLE_REGISTER)
         
         return response is not None
         
@@ -371,7 +458,7 @@ class ModbusRTU:
             return False
             
         request = build_write_multiple_coils_request(unit_id, address, values)
-        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_COILS)
+        response = self.send_request(request, unit_id, WRITE_MULTIPLE_COILS)
         
         return response is not None
         
@@ -381,7 +468,7 @@ class ModbusRTU:
             return False
             
         request = build_write_multiple_registers_request(unit_id, address, values)
-        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_REGISTERS)
+        response = self.send_request(request, unit_id, WRITE_MULTIPLE_REGISTERS)
         
         return response is not None
         
@@ -498,8 +585,8 @@ class ModbusRTU:
                                     logger.warning(error_msg)
                                     
                                     # For read operations, try to extract data even if response is technically invalid
-                                    if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-                                                          FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS):
+                                    if expected_function in (READ_COILS, READ_DISCRETE_INPUTS,
+                                                          READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS):
                                         # Extract data without header and CRC as a last resort
                                         extracted_data = bytes(response_buffer[2:-2])
                                         
@@ -526,8 +613,8 @@ class ModbusRTU:
                         device_state.record_timeout()
                     
                     # For read operations, try to extract data even if response is technically invalid
-                    if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
-                                          FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS) and len(response_buffer) >= 4:
+                    if expected_function in (READ_COILS, READ_DISCRETE_INPUTS,
+                                          READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS) and len(response_buffer) >= 4:
                         # Return raw data without header and CRC as a last resort
                         extracted_data = bytes(response_buffer[2:-2] if len(response_buffer) >= 5 else response_buffer[2:])
                         

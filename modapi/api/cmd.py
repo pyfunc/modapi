@@ -7,6 +7,8 @@ import logging
 from typing import Dict, Any, List, Optional, Union, Tuple
 
 from modapi.rtu import ModbusRTU, test_rtu_connection
+from modapi.rtu.utils import find_serial_ports
+from modapi.config import DEFAULT_BAUDRATE
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ def output_json(data: Dict[str, Any]):
 def execute_command(command: str, args: List[str], port: Optional[str] = None,
                    baudrate: Optional[int] = None, timeout: Optional[float] = None,
                    verbose: bool = False) -> Tuple[bool, Dict[str, Any]]:
+    logger.debug(f"execute_command called with command: {command}, args: {args}, port: {port}, baudrate: {baudrate}")
     """
     Execute a Modbus command
     
@@ -95,6 +98,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         response['port'] = port
         
         # Initialize modbus client
+        logger.debug(f"Initializing ModbusRTU with port={port}, baudrate={baudrate}, timeout={timeout}")
         modbus = ModbusRTU(
             port=port,
             baudrate=baudrate,
@@ -103,24 +107,36 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         
         # Add baudrate to response
         response['baudrate'] = modbus.baudrate
+        logger.debug(f"ModbusRTU initialized with baudrate={modbus.baudrate}")
         
-        if not modbus.connect():
-            response['error'] = f"Failed to connect to port {port}"
+        logger.debug("Attempting to connect to Modbus device...")
+        connected = modbus.connect()
+        logger.debug(f"Modbus connect() returned: {connected}")
+        if not connected:
+            error_msg = f"Failed to connect to port {port}"
+            logger.error(error_msg)
+            response['error'] = error_msg
             return False, response
-            
+        logger.debug("Successfully connected to Modbus device")
+        
         # Process commands
         cmd = command.lower()
         response['operation'] = cmd
+        logger.debug(f"Processing command: {cmd} with args: {args}")
         
         try:
             if cmd == 'rc':  # Read coils
                 if len(args) < 2:
-                    response['error'] = "Usage: rc <address> <count> [unit]"
+                    error_msg = "Usage: rc <address> <count> [unit]"
+                    logger.error(error_msg)
+                    response['error'] = error_msg
                     return False, response
                     
                 address = int(args[0])
                 count = int(args[1])
                 unit = int(args[2]) if len(args) > 2 else 1
+                
+                logger.debug(f"Reading {count} coils starting at address {address}, unit={unit}")
                 
                 response.update({
                     'address': address,
@@ -129,8 +145,12 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                     'register_type': 'coil'
                 })
                 
+                logger.debug(f"Calling modbus.read_coils(address={address}, count={count}, unit={unit})")
                 result = modbus.read_coils(address, count, unit=unit)  # Use unit as kwarg
+                logger.debug(f"read_coils result: {result}")
+                
                 if result is not None:
+                    logger.debug(f"Successfully read {len(result)} coils")
                     response.update({
                         'success': True,
                         'data': {
@@ -140,8 +160,11 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                             'values_dict': {str(i): val for i, val in enumerate(result, address)}
                         }
                     })
+                    logger.debug(f"Response data: {response['data']}")
                 else:
-                    response['error'] = "Failed to read coils"
+                    error_msg = "Failed to read coils - read_coils returned None"
+                    logger.error(error_msg)
+                    response['error'] = error_msg
                     
             elif cmd == 'wc':  # Write coil
                 if len(args) < 2:

@@ -206,20 +206,36 @@ class TestCmdApi(unittest.TestCase):
         mock_client.write_coil.assert_called_once_with(0, True, unit=1)
         mock_client.disconnect.assert_called_once()
     
-    @patch('modapi.api.cmd.ModbusRTU')
-    def test_execute_command_rc(self, mock_client_class):
+    @patch('modapi.rtu.ModbusRTU')
+    @patch('modapi.api.cmd.test_rtu_connection')
+    def test_execute_command_rc(self, mock_test_connection, mock_client_class):
         """Test execute_command with read_coils command"""
+        # Mock the test_rtu_connection function to return success
+        mock_test_connection.return_value = (True, {"connected": True, "device_type": "TestDevice"})
+        
         # Mock the modbus client
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
         mock_client.connect.return_value = True
         mock_client.read_coils.return_value = [True, False, True]
         
+        # Mock the baudrate property
+        type(mock_client).baudrate = 9600
+        
+        # Enable debug logging
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+        logger = logging.getLogger(__name__)
+        
         # Execute command
+        logger.debug("Calling execute_command('rc', ['0', '3'], port='/dev/ttyUSB0')")
         success, response = execute_command('rc', ['0', '3'], port='/dev/ttyUSB0')
         
+        # Log the response for debugging
+        logger.debug(f"execute_command response - success: {success}, response: {response}")
+        
         # Check results
-        self.assertTrue(success)
+        self.assertTrue(success, f"execute_command failed. Response: {response}")
         self.assertEqual(response['operation'], 'rc')
         self.assertEqual(response['address'], 0)
         self.assertEqual(response['count'], 3)

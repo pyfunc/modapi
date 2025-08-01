@@ -28,6 +28,9 @@ except ImportError:
 class ModbusConnectionPool:
     """Manages persistent connections to Modbus devices"""
     
+    # Pool-level variable to track last operation time for RS485 delay across all connections
+    _last_operation_time = 0.0
+    
     def __init__(self):
         """Initialize connection pool"""
         self.connections: Dict[str, ModbusRTU] = {}
@@ -35,6 +38,28 @@ class ModbusConnectionPool:
         self.last_used: Dict[str, float] = {}
         self._cleanup_thread = None
         self._running = False
+    
+    def _enforce_rs485_delay(self, rs485_delay: float):
+        """
+        Enforce delay between RS485 operations across all connections in the pool
+        
+        Args:
+            rs485_delay: Delay between RS485 operations in seconds
+        """
+        if rs485_delay <= 0:
+            return
+            
+        current_time = time.time()
+        time_since_last_op = current_time - self._last_operation_time
+        
+        if time_since_last_op < rs485_delay:
+            delay_needed = rs485_delay - time_since_last_op
+            if delay_needed > 0:
+                logger.debug(f"Pool enforcing RS485 delay of {delay_needed:.3f}s between operations")
+                time.sleep(delay_needed)
+                
+        # Update last operation time at the pool level
+        self._last_operation_time = time.time()
     
     def get_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE,
                       timeout: float = DEFAULT_TIMEOUT, **kwargs) -> ModbusRTU:
@@ -52,11 +77,19 @@ class ModbusConnectionPool:
         """
         key = f"{port}:{baudrate}"
         
+        # Extract rs485_delay from kwargs or use default
+        rs485_delay = kwargs.get('rs485_delay', DEFAULT_RS485_DELAY)
+        
+        # Enforce RS485 delay at the pool level before getting a connection
+        self._enforce_rs485_delay(rs485_delay)
+        
         with self.lock:
             # Check if connection exists and is connected
             if key in self.connections and self.connections[key].is_connected():
                 client = self.connections[key]
                 self.last_used[key] = time.time()
+                # Update the client's internal _last_operation_time to match the pool
+                client._last_operation_time = self._last_operation_time
                 return client
             
             # Create new connection
@@ -66,6 +99,8 @@ class ModbusConnectionPool:
             if success:
                 self.connections[key] = client
                 self.last_used[key] = time.time()
+                # Update the client's internal _last_operation_time to match the pool
+                client._last_operation_time = self._last_operation_time
                 
                 # Start cleanup thread if not running
                 if not self._running:
@@ -78,7 +113,7 @@ class ModbusConnectionPool:
     
     def release_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE):
         """
-        Mark connection as no longer in use
+        Mark connection as no longer in use and update the pool's last operation time
         
         Args:
             port: Serial port path
@@ -88,6 +123,10 @@ class ModbusConnectionPool:
         with self.lock:
             if key in self.connections:
                 self.last_used[key] = time.time()
+                # Update the pool's last operation time from the client
+                if hasattr(self.connections[key], '_last_operation_time'):
+                    self._last_operation_time = max(self._last_operation_time, 
+                                                  self.connections[key]._last_operation_time)
     
     def close_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE):
         """
