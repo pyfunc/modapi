@@ -505,6 +505,81 @@ class ModbusRTU:
         self.disconnect()
 
 
+def find_serial_ports() -> List[str]:
+    """
+    Find available serial ports on the system
+    
+    Returns:
+        List[str]: List of available serial port paths
+    """
+    import serial.tools.list_ports
+    
+    # Common serial port paths to check
+    common_ports = [
+        '/dev/ttyACM0',  # Common for USB adapters on Linux
+        '/dev/ttyUSB0',  # Common for USB-to-serial adapters on Linux
+        '/dev/ttyS0',    # Common for built-in serial ports on Linux
+        '/dev/ttyAMA0',  # Common for Raspberry Pi GPIO UART
+        'COM1',          # Common on Windows
+        'COM3',          # Common on Windows
+    ]
+    
+    # Get list of available ports
+    available_ports = []
+    
+    # First try to use list_ports.comports() which works on most platforms
+    try:
+        ports = list(serial.tools.list_ports.comports())
+        for port in ports:
+            if port.device and port.device not in available_ports:
+                available_ports.append(port.device)
+    except Exception as e:
+        logger.warning(f"Error listing serial ports: {e}")
+    
+    # Also check common ports in case they weren't found by list_ports
+    for port in common_ports:
+        try:
+            if port not in available_ports and os.path.exists(port):
+                available_ports.append(port)
+        except Exception as e:
+            logger.debug(f"Error checking port {port}: {e}")
+    
+    if not available_ports:
+        logger.warning("No serial ports found. Check connections and permissions.")
+    else:
+        logger.info(f"Found serial ports: {', '.join(available_ports)}")
+    
+    return available_ports
+
+
+def test_modbus_port(port: str, baudrate: int = 9600, timeout: float = 0.5) -> bool:
+    """
+    Test if a serial port has a Modbus device connected
+    
+    Args:
+        port: Serial port path to test
+        baudrate: Baud rate to test
+        timeout: Timeout in seconds
+        
+    Returns:
+        bool: True if a Modbus device is detected
+    """
+    try:
+        with ModbusRTU(port=port, baudrate=baudrate, timeout=timeout) as client:
+            if not client.is_connected():
+                return False
+            
+            # Try to read a register to verify it's a Modbus device
+            # Using function code 0x03 (read holding registers) with address 0
+            # This is a common register that many Modbus devices implement
+            success, _ = client.test_connection(unit_id=1)
+            return success
+            
+    except Exception as e:
+        logger.debug(f"Error testing port {port}: {e}")
+        return False
+
+
 # Convenience functions for backward compatibility
 def create_rtu_client(port: str = '/dev/ttyACM0', 
                      baudrate: int = 9600,

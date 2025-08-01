@@ -13,7 +13,21 @@ from .api.rest import create_rest_app
 from .api.mqtt import start_mqtt_broker
 from .api.shell import interactive_mode
 from .api.cmd import execute_command
-from .client import auto_detect_modbus_port, find_serial_ports, test_modbus_port
+# Import Modbus-related functions from the rtu module
+from .api.rtu import (
+    find_serial_ports,
+    test_modbus_port,
+    test_rtu_connection,
+    create_rtu_client
+)
+
+def auto_detect_modbus_port():
+    """Auto-detect Modbus RTU port"""
+    ports = find_serial_ports()
+    for port in ports:
+        if test_modbus_port(port):
+            return port
+    return None
 
 # Configure logging
 logger = logging.getLogger(__name__)

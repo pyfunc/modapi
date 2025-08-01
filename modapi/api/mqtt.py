@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Optional, Dict, Any
 
-from ..client import ModbusClient, auto_detect_modbus_port
+from ..api.rtu import ModbusRTU, test_rtu_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -55,11 +55,15 @@ def start_mqtt_broker(port: Optional[str] = None,
     """
     # Create Modbus client
     if port is None:
-        port = auto_detect_modbus_port()
-        if port is None:
+        # Try to auto-detect port
+        port_found, _ = test_rtu_connection()
+        if port_found:
+            port = '/dev/ttyACM0'  # Default port from test_rtu_connection
+        else:
             logger.error("No Modbus device found! MQTT API will not work correctly.")
+            port = '/dev/ttyACM0'  # Use default even if not found
     
-    modbus_client = ModbusClient(port=port, baudrate=baudrate, timeout=timeout)
+    modbus_client = ModbusRTU(port=port, baudrate=baudrate, timeout=timeout)
     
     # Create MQTT client
     client = mqtt.Client(client_id=client_id)

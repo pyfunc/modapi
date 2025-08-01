@@ -6,7 +6,17 @@ import json
 import logging
 from typing import Dict, Any, Optional
 
-from ..client import ModbusClient, auto_detect_modbus_port
+from .rtu import ModbusRTU, test_rtu_connection
+from .tcp import ModbusTCP, test_tcp_connection, scan_modbus_network
+
+def auto_detect_modbus_port():
+    """Auto-detect Modbus RTU port"""
+    from ..api.rtu import find_serial_ports, test_modbus_port
+    ports = find_serial_ports()
+    for port in ports:
+        if test_modbus_port(port):
+            return port
+    return None
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -67,15 +77,21 @@ def interactive_mode(port: Optional[str] = None, baudrate: Optional[int] = None,
     
     # Auto-detect port if not specified
     if not port:
+        print("Auto-detecting Modbus port...")
         port = auto_detect_modbus_port()
         if not port:
-            print("No Modbus device found! Please connect a device and try again.")
+            print("Error: Could not auto-detect Modbus port. Please specify with --port")
             return
-            
-    # Create client
-    client = ModbusClient(port=port, baudrate=baudrate, timeout=timeout, verbose=verbose)
+    
+    # Initialize client
+    client = ModbusRTU(
+        port=port,
+        baudrate=baudrate or 9600,
+        timeout=timeout or 1.0
+    )
+    
     if not client.connect():
-        print(f"Failed to connect to {port}")
+        print(f"Error: Could not connect to {port}")
         return
         
     print(f"Connected to Modbus device on {port}")

@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 import struct
 import serial
 
-from api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
+from modapi.api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
 
 
 class TestModbusRTU(unittest.TestCase):

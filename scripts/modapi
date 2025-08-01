@@ -11,7 +11,16 @@ from pathlib import Path
 # Add parent directory to path to import modapi
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modapi.client import ModbusClient, auto_detect_modbus_port
+from modapi.api.rtu import ModbusRTU as ModbusClient, test_rtu_connection
+from modapi.api.rtu import find_serial_ports, test_modbus_port
+
+def auto_detect_modbus_port():
+    """Auto-detect Modbus RTU port"""
+    ports = find_serial_ports()
+    for port in ports:
+        if test_modbus_port(port):
+            return port
+    return None
 
 def main():
     """Main entry point for the direct CLI"""

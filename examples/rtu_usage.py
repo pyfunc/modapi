@@ -6,7 +6,7 @@ Zastępuje funkcjonalność client.py i output.py
 
 import logging
 import time
-from api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
+from modapi.api.rtu import ModbusRTU, create_rtu_client, test_rtu_connection
 
 
 def example_basic_usage():

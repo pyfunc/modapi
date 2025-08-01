@@ -16,12 +16,14 @@ from modapi.api.rest import create_rest_app
 from modapi.api.mqtt import start_mqtt_broker
 from modapi.api.cmd import execute_command
 from modapi.api.shell import interactive_mode
+from modapi.api.rtu import ModbusRTU
+from modapi.api.tcp import ModbusTCP
 
 
 class TestRestApi(unittest.TestCase):
     """Test cases for REST API"""
 
-    @patch('modapi.api.rest.ModbusClient')
+    @patch('modapi.api.rest.ModbusRTU')
     def setUp(self, mock_client_class):
         """Set up test fixtures"""
         self.mock_client = mock_client_class.return_value
@@ -121,7 +123,7 @@ class TestMqttApi(unittest.TestCase):
     """Test cases for MQTT API"""
 
     @patch('modapi.api.mqtt.mqtt.Client')
-    @patch('modapi.api.mqtt.ModbusClient')
+    @patch('modapi.api.mqtt.ModbusRTU')
     def test_start_mqtt_broker(self, mock_modbus_client, mock_mqtt_client):
         """Test start_mqtt_broker function"""
         # Mock the mqtt client

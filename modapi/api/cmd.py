@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional, Union, Tuple
 
-from ..client import ModbusClient, auto_detect_modbus_port
+from modapi.api.rtu import ModbusRTU, test_rtu_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -64,11 +64,13 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
     try:
         # Use the configured port or auto-detect
         if not port:
-            port = auto_detect_modbus_port()
-            if not port:
+            port_found, _ = test_rtu_connection()
+            if port_found:
+                port = '/dev/ttyACM0'  # Default port from test_rtu_connection
+                response['port_source'] = 'auto_detected'
+            else:
                 response['error'] = "Could not auto-detect Modbus port"
                 return False, response
-            response['port_source'] = 'auto_detected'
         else:
             response['port_source'] = 'command_line'
             
@@ -76,7 +78,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         response['port'] = port
         
         # Initialize modbus client
-        modbus = ModbusClient(
+        modbus = ModbusRTU(
             port=port,
             baudrate=baudrate,
             timeout=timeout,
