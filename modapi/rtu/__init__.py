@@ -23,7 +23,13 @@ from .protocol import (
 from .crc import calculate_crc, validate_crc, try_alternative_crcs
 
 # Utility functions
-from .utils import find_serial_ports, test_modbus_port, scan_for_devices, detect_device_type
+from .utils import (
+    find_serial_ports, 
+    test_modbus_port, 
+    scan_for_devices, 
+    detect_device_type,
+    test_rtu_connection
+)
 
 # Device-specific classes
 from .devices import WaveshareIO8CH, WaveshareAnalogInput8CH

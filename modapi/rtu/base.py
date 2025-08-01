@@ -8,8 +8,10 @@ import serial
 import time
 import sys
 import struct
+import os
 from threading import Lock
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Union
+from datetime import datetime
 
 from .crc import calculate_crc
 from .protocol import (
@@ -17,11 +19,13 @@ from .protocol import (
     build_read_request, build_write_single_coil_request, build_write_single_register_request,
     build_write_multiple_coils_request, build_write_multiple_registers_request
 )
+from .device_state import ModbusDeviceState, ModbusDeviceStateManager, device_manager
 from modapi.config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
-    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS
+    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
+    BAUDRATES, PRIORITIZED_BAUDRATES
 )
 
 logger = logging.getLogger(__name__)
@@ -34,31 +38,83 @@ class ModbusRTU:
     
     def __init__(self,
                  port: str = '/dev/ttyACM0',
-                 baudrate: int = 57600,
+                 baudrate: int = None,  # Will use highest baudrate by default
                  timeout: float = 1.0,
                  parity: str = 'N',
                  stopbits: int = 1,
-                 bytesize: int = 8):
+                 bytesize: int = 8,
+                 enable_state_tracking: bool = True,
+                 log_directory: str = None):
         """
         Initialize RTU Modbus connection
         
         Args:
             port: Serial port path (default: /dev/ttyACM0)
-            baudrate: Baud rate (default: 57600)
+            baudrate: Baud rate (default: highest from PRIORITIZED_BAUDRATES or BAUDRATES)
             timeout: Read timeout in seconds
             parity: Parity setting (N/E/O)
             stopbits: Stop bits (1 or 2)
-            bytesize: Data bits (7 or 8)
+            bytesize: Data bits (5-8)
+            enable_state_tracking: Whether to track device state
+            log_directory: Directory for detailed logs and device state dumps
         """
         self.port = port
-        self.baudrate = baudrate
+        
+        # Use highest baudrate by default (prioritize from config)
+        if baudrate is None:
+            if PRIORITIZED_BAUDRATES and len(PRIORITIZED_BAUDRATES) > 0:
+                self.baudrate = max(PRIORITIZED_BAUDRATES)
+            else:
+                self.baudrate = max(BAUDRATES)
+            logger.info(f"Using highest baudrate: {self.baudrate}")
+        else:
+            self.baudrate = baudrate
+            
         self.timeout = timeout
         self.parity = parity
         self.stopbits = stopbits
         self.bytesize = bytesize
         
-        self.serial_conn: Optional[serial.Serial] = None
-        self.lock = Lock()  # Thread safety
+        self.serial_conn = None
+        self.lock = Lock()
+        
+        # Device state tracking
+        self.enable_state_tracking = enable_state_tracking
+        self.device_states = {}
+        self.current_unit_id = None  # Track current device being communicated with
+        
+        # Set up logging directory
+        self.log_directory = log_directory
+        if self.log_directory is None:
+            self.log_directory = os.path.join(os.path.expanduser("~"), ".modbus_logs")
+        os.makedirs(self.log_directory, exist_ok=True)
+        
+        # Set up detailed logging
+        self.setup_detailed_logging()
+        
+    def setup_detailed_logging(self):
+        """Set up detailed logging for Modbus communication"""
+        # Create a device-specific logger
+        self.device_logger = logging.getLogger(f"modbus.device.{self.port.replace('/', '_')}")
+        self.device_logger.setLevel(logging.DEBUG)
+        
+        # Create log file with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = os.path.join(self.log_directory, f"modbus_{self.port.replace('/', '_')}_{timestamp}.log")
+        
+        # Create file handler
+        file_handler = logging.FileHandler(log_filename)
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        self.device_logger.addHandler(file_handler)
+        
+        self.device_logger.info(f"Detailed logging started for {self.port} at {self.baudrate} baud")
+        logger.info(f"Detailed logs will be saved to {log_filename}")  # Thread safety
         
         # Modbus function codes - use the ones from config
         self.FUNC_READ_COILS = FUNC_READ_COILS
@@ -297,24 +353,64 @@ class ModbusRTU:
                 # Send request
                 self.serial_conn.write(request)
                 
-                # Wait for response
+                # Wait a moment for the device to process the request (helps with Waveshare devices)
+                time.sleep(0.05)
+                
+                # Wait for response with improved handling for Waveshare devices
                 start_time = time.time()
+                response_buffer = bytearray()
+                
+                # For Waveshare devices, we need to be more patient and handle partial responses
                 while time.time() - start_time < self.timeout:
                     if self.serial_conn.in_waiting > 0:
-                        # Read response
-                        response = self.serial_conn.read(self.serial_conn.in_waiting)
+                        # Read available data
+                        new_data = self.serial_conn.read(self.serial_conn.in_waiting)
+                        response_buffer.extend(new_data)
                         
-                        # Parse and validate response
-                        data = self._parse_response(response, expected_unit, expected_function)
+                        # Try to parse what we have so far
+                        data = self._parse_response(bytes(response_buffer), expected_unit, expected_function)
                         if data is not None:
                             return data
-                            
-                        # If invalid, wait for more data
+                        
+                        # If we have a substantial amount of data but it's invalid, it might be
+                        # all we're going to get, so try a few more times then give up
+                        if len(response_buffer) >= 5:  # Minimum valid response length
+                            # Wait a bit longer for any remaining data
+                            time.sleep(0.05)
+                            if self.serial_conn.in_waiting == 0:
+                                # No more data coming, try one more parse attempt with what we have
+                                # This is especially important for Waveshare devices with non-standard responses
+                                data = self._parse_response(bytes(response_buffer), expected_unit, expected_function)
+                                if data is not None:
+                                    return data
+                                
+                                # If we have what looks like a complete response but it's invalid,
+                                # log it and return it anyway for debugging
+                                if len(response_buffer) >= 5 and response_buffer[0] == expected_unit:
+                                    logger.warning(f"Got potentially valid but unparseable response: {response_buffer.hex()}")
+                                    # For read operations, try to extract data even if response is technically invalid
+                                    if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
+                                                          FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS):
+                                        # Return raw data without header and CRC as a last resort
+                                        return bytes(response_buffer[2:-2])
+                        
+                        # Short pause before checking again
                         time.sleep(0.01)
                     else:
+                        # No data available yet, short pause
                         time.sleep(0.01)
-                        
-                logger.warning(f"Timeout waiting for response from {self.port}")
+                
+                # If we got any data at all but couldn't parse it, log and return it for debugging
+                if response_buffer:
+                    logger.warning(f"Timeout with partial response: {response_buffer.hex()}")
+                    # For read operations, try to extract data even if response is technically invalid
+                    if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
+                                          FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS) and len(response_buffer) >= 4:
+                        # Return raw data without header and CRC as a last resort
+                        return bytes(response_buffer[2:-2] if len(response_buffer) >= 5 else response_buffer[2:])
+                else:
+                    logger.warning(f"Timeout waiting for response from {self.port}")
+                
                 return None
                 
             except Exception as e:

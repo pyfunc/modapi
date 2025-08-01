@@ -12,9 +12,9 @@ import time
 from typing import Dict, List, Optional, Tuple, Any
 
 # Import from new modular implementation
-from .rtu.client import ModbusRTUClient
-from .rtu.utils import find_serial_ports, test_modbus_port
-from .rtu.protocol import (
+from modapi.rtu.client import ModbusRTUClient
+from modapi.rtu.utils import find_serial_ports, test_modbus_port
+from modapi.rtu.protocol import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,

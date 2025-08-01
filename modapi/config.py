@@ -174,9 +174,15 @@ def get_config_value(key: str, default: Any = None) -> Any:
 # Get baudrates array
 def get_baudrates_array():
     constants = _load_constants()
-    return constants.get('baudrates', [57600, 115200])  # Updated default baudrates
+    return constants.get('baudrates', [57600, 115200, 9600])  # Updated default baudrates
+
+# Get prioritized baudrates for auto-detection
+def get_prioritized_baudrates():
+    constants = _load_constants()
+    return constants.get('prioritized_baudrates', [57600, 115200])  # Prioritize higher baudrates
 
 BAUDRATES = get_baudrates_array()
+PRIORITIZED_BAUDRATES = get_prioritized_baudrates()
 
 # Auto-detection settings
 def get_auto_detect_settings():
