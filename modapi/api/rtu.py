@@ -381,13 +381,20 @@ class ModbusRTU:
     
     def _send_request(self, unit_id: int, function_code: int, data: bytes, max_retries: int = 4) -> Optional[bytes]:
         """
-        Send request and receive response with retries
+        Send Modbus RTU request with intelligent retries
+        
+        This method sends a Modbus RTU request and handles retries with progressively
+        increasing delays. It also implements special handling for Waveshare devices
+        which may have timing or response format quirks.
+        
+        The retry mechanism uses an exponential backoff strategy, with longer delays
+        between retries to accommodate devices that need more time to process requests.
         
         Args:
             unit_id: Slave unit ID
             function_code: Modbus function code
             data: Request data
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of retries
             
         Returns:
             Optional[bytes]: Response data or None if error
@@ -397,10 +404,10 @@ class ModbusRTU:
             return None
         
         retries = 0
-        last_error = None
+        last_error = "Unknown error"
         last_response = None
         
-        # Log request details
+        # Map function codes to names for better logging
         function_names = {
             self.FUNC_READ_COILS: "READ_COILS",
             self.FUNC_READ_DISCRETE_INPUTS: "READ_DISCRETE_INPUTS",
@@ -411,17 +418,24 @@ class ModbusRTU:
             self.FUNC_WRITE_MULTIPLE_COILS: "WRITE_MULTIPLE_COILS",
             self.FUNC_WRITE_MULTIPLE_REGISTERS: "WRITE_MULTIPLE_REGISTERS"
         }
+        
         function_name = function_names.get(function_code, f"UNKNOWN(0x{function_code:02X})")
         logger.debug(f"Preparing {function_name} request to unit {unit_id} with data: {data.hex()}")
         
         while retries <= max_retries:
             try:
+                # Calculate exponential backoff delay for retries
+                # First attempt: no delay, then increasing delays
+                retry_delay = 0 if retries == 0 else 0.1 * (2 ** (retries - 1))
+                if retry_delay > 0:
+                    logger.debug(f"Retry delay: {retry_delay:.3f}s before attempt {retries+1}")
+                    time.sleep(retry_delay)
+                
                 with self.lock:
-                    # Clear both input and output buffers
+                    # Clear buffers before each attempt
                     self.serial_conn.reset_input_buffer()
                     self.serial_conn.reset_output_buffer()
-                    
-                    # Small delay to ensure buffers are cleared
+                    time.sleep(0.05)  # Small delay to ensure buffers are cleared
                     time.sleep(0.05)  # Increased from 0.02 to 0.05 for more reliable buffer clearing
                     
                     # Build and send request
