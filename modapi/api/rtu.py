@@ -122,23 +122,20 @@ class ModbusRTU:
     
     def _calculate_crc(self, data: bytes) -> int:
         """
-        Calculate Modbus RTU CRC16
+        Calculate CRC16 for Modbus.
         
-        Args:
-            data: Data bytes for CRC calculation
-            
-        Returns:
-            int: CRC16 value
+        This is a standard Modbus CRC-16 (MODBUS) calculation.
+        Polynomial: x^16 + x^15 + x^2 + 1 (0x8005 or 0xA001 reflected)
+        Initial value: 0xFFFF
         """
         crc = 0xFFFF
         for byte in data:
             crc ^= byte
             for _ in range(8):
-                if crc & 1:
-                    crc >>= 1
-                    crc ^= 0xA001
+                if crc & 0x0001:
+                    crc = (crc >> 1) ^ 0xA001
                 else:
-                    crc >>= 1
+                    crc = crc >> 1
         return crc
     
     def _build_request(self, unit_id: int, function_code: int, data: bytes) -> bytes:
@@ -349,6 +346,51 @@ class ModbusRTU:
             logger.error(f"Error parsing coils response: {e}")
             return None
     
+    def read_discrete_inputs(self, unit_id: int, address: int, count: int) -> Optional[List[bool]]:
+        """
+        Read discrete inputs (function code 0x02)
+        
+        Args:
+            unit_id: Slave unit ID
+            address: Starting address
+            count: Number of inputs to read
+            
+        Returns:
+            Optional[List[bool]]: List of input states or None if error
+        """
+        if count < 1 or count > 2000:
+            logger.error("Invalid discrete input count")
+            return None
+        
+        # Build request data
+        data = struct.pack('>HH', address, count)
+        
+        # Send request
+        response_data = self._send_request(unit_id, self.FUNC_READ_DISCRETE_INPUTS, data)
+        if response_data is None:
+            return None
+        
+        try:
+            # Parse response
+            byte_count = response_data[0]
+            input_data = response_data[1:1+byte_count]
+            
+            # Convert bytes to boolean list
+            inputs = []
+            for i in range(count):
+                byte_index = i // 8
+                bit_index = i % 8
+                if byte_index < len(input_data):
+                    inputs.append(bool(input_data[byte_index] & (1 << bit_index)))
+                else:
+                    inputs.append(False)
+            
+            return inputs
+            
+        except Exception as e:
+            logger.error(f"Error parsing discrete inputs response: {e}")
+            return None
+    
     def read_holding_registers(self, unit_id: int, address: int, count: int) -> Optional[List[int]]:
         """
         Read holding registers (function code 0x03)
@@ -389,6 +431,48 @@ class ModbusRTU:
             
         except Exception as e:
             logger.error(f"Error parsing registers response: {e}")
+            return None
+    
+    def read_input_registers(self, unit_id: int, address: int, count: int) -> Optional[List[int]]:
+        """
+        Read input registers (function code 0x04)
+        
+        Args:
+            unit_id: Slave unit ID
+            address: Starting address
+            count: Number of registers to read
+            
+        Returns:
+            Optional[List[int]]: List of register values or None if error
+        """
+        if count < 1 or count > 125:
+            logger.error("Invalid input register count")
+            return None
+        
+        # Build request data
+        data = struct.pack('>HH', address, count)
+        
+        # Send request
+        response_data = self._send_request(unit_id, self.FUNC_READ_INPUT_REGISTERS, data)
+        if response_data is None:
+            return None
+        
+        try:
+            # Parse response
+            byte_count = response_data[0]
+            if byte_count != count * 2:
+                logger.error(f"Unexpected byte count in input registers response: {byte_count}")
+                return None
+            
+            registers = []
+            for i in range(count):
+                reg_value = struct.unpack('>H', response_data[1+i*2:3+i*2])[0]
+                registers.append(reg_value)
+            
+            return registers
+            
+        except Exception as e:
+            logger.error(f"Error parsing input registers response: {e}")
             return None
     
     def write_single_coil(self, unit_id: int, address: int, value: bool) -> bool:
