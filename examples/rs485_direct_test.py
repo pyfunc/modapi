@@ -132,7 +132,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Test RS485 Modbus device with specific parameters')
     parser.add_argument('--port', default='/dev/ttyACM0', help='Serial port path')
-    parser.add_argument('--baudrate', type=int, default=9600, help='Baud rate')
+    parser.add_argument('--baudrate', type=int, default=57600, help='Baud rate')
     parser.add_argument('--unit-id', type=int, default=1, help='Unit ID')
     parser.add_argument('--parity', choices=['N', 'E', 'O'], default='N', help='Parity (N/E/O)')
     parser.add_argument('--stopbits', type=int, choices=[1, 2], default=1, help='Stop bits')

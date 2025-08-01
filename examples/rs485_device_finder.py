@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger("rs485_finder")
 
 def scan_for_devices(ports: Optional[List[str]] = None, 
-                    baudrates: List[int] = [9600, 19200, 38400],
+                    baudrates: List[int] = [19200, 38400],
                     unit_ids: List[int] = [1, 2, 3, 4, 5],
                     timeout: float = 0.3) -> Dict[str, List[Dict[str, any]]]:
     """
@@ -143,7 +143,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Find RS485 Modbus devices')
     parser.add_argument('--ports', nargs='+', help='Serial ports to scan (default: auto-detect)')
-    parser.add_argument('--baudrates', type=int, nargs='+', default=[9600, 19200, 38400], 
+    parser.add_argument('--baudrates', type=int, nargs='+', default=[19200, 38400],
                         help='Baudrates to test (default: 9600, 19200, 38400)')
     parser.add_argument('--unit-ids', type=int, nargs='+', default=list(range(1, 6)),
                         help='Unit IDs to scan (default: 1-5)')

@@ -10,12 +10,21 @@ import logging
 from flask import Flask, jsonify, request, render_template_string
 from modapi.rtu import ModbusRTU
 from modapi.__main__ import auto_detect_modbus_port
-from modapi.rtu.config import (
+from modapi.config import (
     DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID,
+    BAUDRATES, PRIORITIZED_BAUDRATES, AUTO_DETECT_UNIT_IDS,
+    FUNC_READ_COILS, FUNC_WRITE_SINGLE_COIL,
     get_config_value, _load_constants
 )
 import time
 
+from modapi.config import (
+    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
+    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
+    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
+    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
+    BAUDRATES, PRIORITIZED_BAUDRATES
+)
 # Konfiguracja logowania
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,7 +45,7 @@ AUTO_DETECT_CONFIG = CONSTANTS.get('auto_detect', {
 # Pobierz konfigurację mock
 MOCK_CONFIG = CONSTANTS.get('mock', {
     'port': 'MOCK',
-    'baudrate': 9600,
+    'baudrate': 19200,
     'unit_id': 1
 })
 
@@ -174,7 +183,7 @@ def init_mock_mode():
     # Użyj konfiguracji mock z constants.json
     RTU_CONFIG = {
         'port': MOCK_CONFIG.get('port', 'MOCK'),
-        'baudrate': MOCK_CONFIG.get('baudrate', 9600),
+        'baudrate': MOCK_CONFIG.get('baudrate', 19200),
         'unit_id': MOCK_CONFIG.get('unit_id', 1)
     }
     logger.info(f"✅ Używam konfiguracji MOCK: {RTU_CONFIG}")

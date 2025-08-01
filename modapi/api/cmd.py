@@ -64,15 +64,32 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
     try:
         # Use the configured port or auto-detect
         if not port:
-            port_found, _ = test_rtu_connection()
-            if port_found:
-                port = '/dev/ttyACM0'  # Default port from test_rtu_connection
+            # Try to find an available port
+            ports = find_serial_ports()
+            if not ports:
+                response['error'] = "No serial ports found"
+                return False, response
+                
+            # Try the first available port
+            port = ports[0]
+            success, result = test_rtu_connection(port=port, baudrate=baudrate or 57600)
+            
+            if success:
                 response['port_source'] = 'auto_detected'
+                response['device_type'] = result.get('device_type', 'Unknown')
             else:
-                response['error'] = "Could not auto-detect Modbus port"
+                response['error'] = f"Could not auto-detect Modbus port. {result.get('error', '')}"
                 return False, response
         else:
             response['port_source'] = 'command_line'
+            # Test the provided port
+            success, result = test_rtu_connection(port=port, baudrate=baudrate or 57600)
+            if not success:
+                response['error'] = f"Failed to connect to port {port}. {result.get('error', '')}"
+                response['port'] = port  # Ensure port is included in the error response
+                response['baudrate'] = baudrate  # Include baudrate in the error response
+                return False, response
+            response['device_type'] = result.get('device_type', 'Unknown')
             
         # Add port to response
         response['port'] = port
@@ -81,8 +98,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         modbus = ModbusRTU(
             port=port,
             baudrate=baudrate,
-            timeout=timeout,
-            verbose=verbose
+            timeout=timeout
         )
         
         # Add baudrate to response

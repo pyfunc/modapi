@@ -242,7 +242,7 @@ def main():
     parser.add_argument('--port', type=str, default='/dev/ttyACM0',
                         help='Serial port to use (default: /dev/ttyACM0)')
     parser.add_argument('--baudrate', type=int, default=9600,
-                        help='Baudrate to use (default: 9600)')
+                        help='Baudrate to use (default: 57600)')
     parser.add_argument('--timeout', type=float, default=2.0,
                         help='Communication timeout in seconds (default: 2.0)')
     parser.add_argument('--start-id', type=int, default=1,

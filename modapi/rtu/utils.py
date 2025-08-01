@@ -10,6 +10,10 @@ import serial.tools.list_ports
 import time
 from typing import List, Optional, Dict, Tuple, Any
 from modapi.rtu.protocol import calculate_crc
+from modapi.config import (
+    BAUDRATES, PRIORITIZED_BAUDRATES, AUTO_DETECT_UNIT_IDS,
+    DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +122,7 @@ def test_modbus_port(port: str, baudrate: int = 57600, timeout: float = 0.5, uni
             
             return False
     except Exception as e:
-        logger.debug(f"Error testing {port} at {baudrate} baud: {str(e)}")
+        logger.debug(f"Error testing port {port} at {baudrate} baud: {e}", exc_info=True)
         return False
 
 def scan_for_devices(ports: List[str] = None, 
@@ -135,8 +139,6 @@ def scan_for_devices(ports: List[str] = None,
     Returns:
         List[Dict[str, Any]]: List of detected devices with configuration
     """
-    from modapi.config import BAUDRATES as DEFAULT_BAUDRATES, PRIORITIZED_BAUDRATES, AUTO_DETECT_UNIT_IDS
-    
     if ports is None:
         ports = find_serial_ports()
     
@@ -287,6 +289,7 @@ def test_rtu_connection(port: str, baudrate: int = 57600, timeout: float = 0.5, 
                 
     except Exception as e:
         result['error'] = str(e)
-        logger.error(f"Error testing RTU connection: {e}")
-    
+        logger.error(f"Error testing RTU connection on port {port}: {e}")
+        return False, result
+        
     return False, result

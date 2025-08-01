@@ -27,7 +27,7 @@ def scan_ports() -> List[str]:
     print(f"Found {len(ports)} serial ports: {', '.join(ports)}")
     return ports
 
-def scan_device(port: str, baudrate: int = 9600) -> List[Tuple[int, str]]:
+def scan_device(port: str, baudrate: int = 57600) -> List[Tuple[int, str]]:
     """
     Scan a single port for Modbus devices
     

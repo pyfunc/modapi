@@ -20,6 +20,11 @@ from .protocol import (
     build_write_multiple_coils_request, build_write_multiple_registers_request
 )
 from .device_state import ModbusDeviceState, ModbusDeviceStateManager, device_manager
+from .device_manager import (
+    get_or_create_device_state, get_request_type, extract_address_from_request,
+    update_device_state_from_response, dump_device_states, dump_current_device_state,
+    get_device_state_summary
+)
 from modapi.config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
@@ -92,30 +97,67 @@ class ModbusRTU:
         # Set up detailed logging
         self.setup_detailed_logging()
         
+        # Initialize function codes
+        self._init_function_codes()
+        
     def setup_detailed_logging(self):
-        """Set up detailed logging for Modbus communication"""
-        # Create a device-specific logger
+        """Set up detailed logging for device communication"""
+        # Create device-specific logger
         self.device_logger = logging.getLogger(f"modbus.device.{self.port.replace('/', '_')}")
         self.device_logger.setLevel(logging.DEBUG)
         
-        # Create log file with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_filename = os.path.join(self.log_directory, f"modbus_{self.port.replace('/', '_')}_{timestamp}.log")
+        # Create log directory for this port
+        port_name = self.port.replace('/', '_')
+        device_log_dir = os.path.join(self.log_directory, port_name)
+        os.makedirs(device_log_dir, exist_ok=True)
         
-        # Create file handler
-        file_handler = logging.FileHandler(log_filename)
+        # Add file handler for detailed logs
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(device_log_dir, f"modbus_{port_name}_{timestamp}.log")
+        
+        file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.DEBUG)
         
-        # Create formatter
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         
-        # Add handler to logger
         self.device_logger.addHandler(file_handler)
+        self.device_logger.info(f"Started detailed logging for {self.port} at {self.baudrate} baud")
         
-        self.device_logger.info(f"Detailed logging started for {self.port} at {self.baudrate} baud")
-        logger.info(f"Detailed logs will be saved to {log_filename}")  # Thread safety
+    # Device state management methods
+    def _get_or_create_device_state(self, unit_id: int) -> Optional[ModbusDeviceState]:
+        """Get or create device state for a unit ID"""
+        return get_or_create_device_state(self, unit_id)
         
+    def _get_request_type(self, function_code: int) -> str:
+        """Get human-readable request type from function code"""
+        return get_request_type(function_code)
+        
+    def _extract_address_from_request(self, request: bytes, function_code: int) -> int:
+        """Extract address from request bytes"""
+        return extract_address_from_request(request, function_code, logger=self.device_logger)
+        
+    def _update_device_state_from_response(self, device_state: ModbusDeviceState, 
+                                         function_code: int, address: int, 
+                                         data: bytes, is_reliable: bool = True) -> None:
+        """Update device state based on response data"""
+        update_device_state_from_response(device_state, function_code, address, data, 
+                                        is_reliable, logger=self.device_logger)
+        
+    def dump_device_states(self, directory: str = None) -> None:
+        """Dump all device states to JSON files"""
+        dump_device_states(self, directory)
+        
+    def dump_current_device_state(self) -> None:
+        """Dump current device state to JSON file"""
+        dump_current_device_state(self)
+        
+    def get_device_state_summary(self, unit_id: Optional[int] = None) -> Dict[str, Any]:
+        """Get summary of device state(s)"""
+        return get_device_state_summary(self, unit_id)
+        
+    def _init_function_codes(self):
+        """Initialize function code constants from config"""
         # Modbus function codes - use the ones from config
         self.FUNC_READ_COILS = FUNC_READ_COILS
         self.FUNC_READ_DISCRETE_INPUTS = FUNC_READ_DISCRETE_INPUTS
@@ -126,7 +168,7 @@ class ModbusRTU:
         self.FUNC_WRITE_MULTIPLE_COILS = FUNC_WRITE_MULTIPLE_COILS
         self.FUNC_WRITE_MULTIPLE_REGISTERS = FUNC_WRITE_MULTIPLE_REGISTERS
         
-        logger.info(f"Initialized ModbusRTU for {port} at {baudrate} baud")
+        logger.info(f"Initialized ModbusRTU for {self.port} at {self.baudrate} baud")
     
     def connect(self) -> bool:
         """
@@ -343,33 +385,62 @@ class ModbusRTU:
         """Send request and get response"""
         if not self.is_connected():
             return None
+        
+        # Track current unit ID for device state management
+        self.current_unit_id = expected_unit
+        
+        # Get or create device state
+        device_state = self._get_or_create_device_state(expected_unit)
+        if device_state:
+            device_state.record_request()
+        
+        # Extract request details for logging
+        request_type = self._get_request_type(expected_function)
+        address = self._extract_address_from_request(request, expected_function)
+        
+        # Log request details
+        self.device_logger.debug(f"REQUEST [{expected_unit}] {request_type} @ {address}: {request.hex()}")
             
         with self.lock:
             try:
+                # Record start time for performance tracking
+                start_time = time.time()
+                
                 # Clear any pending data
                 if self.serial_conn and self.serial_conn.in_waiting > 0:
                     self.serial_conn.reset_input_buffer()
+                    self.device_logger.debug(f"Cleared input buffer with {self.serial_conn.in_waiting} bytes pending")
                     
                 # Send request
                 self.serial_conn.write(request)
+                self.device_logger.debug(f"Sent {len(request)} bytes")
                 
                 # Wait a moment for the device to process the request (helps with Waveshare devices)
                 time.sleep(0.05)
                 
                 # Wait for response with improved handling for Waveshare devices
-                start_time = time.time()
                 response_buffer = bytearray()
+                response_start_time = time.time()
                 
                 # For Waveshare devices, we need to be more patient and handle partial responses
-                while time.time() - start_time < self.timeout:
+                while time.time() - response_start_time < self.timeout:
                     if self.serial_conn.in_waiting > 0:
                         # Read available data
                         new_data = self.serial_conn.read(self.serial_conn.in_waiting)
+                        self.device_logger.debug(f"Read {len(new_data)} bytes: {new_data.hex()}")
                         response_buffer.extend(new_data)
                         
                         # Try to parse what we have so far
                         data = self._parse_response(bytes(response_buffer), expected_unit, expected_function)
                         if data is not None:
+                            # Log success and update device state
+                            elapsed = time.time() - start_time
+                            self.device_logger.info(f"SUCCESS [{expected_unit}] {request_type} @ {address} in {elapsed:.3f}s: {data.hex()}")
+                            
+                            if device_state:
+                                device_state.record_success()
+                                self._update_device_state_from_response(device_state, expected_function, address, data)
+                            
                             return data
                         
                         # If we have a substantial amount of data but it's invalid, it might be
@@ -382,17 +453,35 @@ class ModbusRTU:
                                 # This is especially important for Waveshare devices with non-standard responses
                                 data = self._parse_response(bytes(response_buffer), expected_unit, expected_function)
                                 if data is not None:
+                                    # Log success and update device state
+                                    elapsed = time.time() - start_time
+                                    self.device_logger.info(f"SUCCESS (retry) [{expected_unit}] {request_type} @ {address} in {elapsed:.3f}s: {data.hex()}")
+                                    
+                                    if device_state:
+                                        device_state.record_success()
+                                        self._update_device_state_from_response(device_state, expected_function, address, data)
+                                    
                                     return data
                                 
                                 # If we have what looks like a complete response but it's invalid,
                                 # log it and return it anyway for debugging
                                 if len(response_buffer) >= 5 and response_buffer[0] == expected_unit:
-                                    logger.warning(f"Got potentially valid but unparseable response: {response_buffer.hex()}")
+                                    error_msg = f"Got potentially valid but unparseable response: {response_buffer.hex()}"
+                                    self.device_logger.warning(error_msg)
+                                    logger.warning(error_msg)
+                                    
                                     # For read operations, try to extract data even if response is technically invalid
                                     if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
                                                           FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS):
-                                        # Return raw data without header and CRC as a last resort
-                                        return bytes(response_buffer[2:-2])
+                                        # Extract data without header and CRC as a last resort
+                                        extracted_data = bytes(response_buffer[2:-2])
+                                        
+                                        if device_state:
+                                            device_state.record_crc_error()
+                                            # Try to update state even with potentially corrupted data
+                                            self._update_device_state_from_response(device_state, expected_function, address, extracted_data, is_reliable=False)
+                                        
+                                        return extracted_data
                         
                         # Short pause before checking again
                         time.sleep(0.01)
@@ -402,17 +491,40 @@ class ModbusRTU:
                 
                 # If we got any data at all but couldn't parse it, log and return it for debugging
                 if response_buffer:
-                    logger.warning(f"Timeout with partial response: {response_buffer.hex()}")
+                    error_msg = f"Timeout with partial response: {response_buffer.hex()}"
+                    self.device_logger.warning(error_msg)
+                    logger.warning(error_msg)
+                    
+                    if device_state:
+                        device_state.record_timeout()
+                    
                     # For read operations, try to extract data even if response is technically invalid
                     if expected_function in (FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
                                           FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS) and len(response_buffer) >= 4:
                         # Return raw data without header and CRC as a last resort
-                        return bytes(response_buffer[2:-2] if len(response_buffer) >= 5 else response_buffer[2:])
+                        extracted_data = bytes(response_buffer[2:-2] if len(response_buffer) >= 5 else response_buffer[2:])
+                        
+                        if device_state:
+                            # Try to update state even with potentially corrupted data
+                            self._update_device_state_from_response(device_state, expected_function, address, extracted_data, is_reliable=False)
+                        
+                        return extracted_data
                 else:
-                    logger.warning(f"Timeout waiting for response from {self.port}")
+                    error_msg = f"Timeout waiting for response from {self.port}"
+                    self.device_logger.warning(error_msg)
+                    logger.warning(error_msg)
+                    
+                    if device_state:
+                        device_state.record_timeout()
                 
                 return None
                 
             except Exception as e:
-                logger.error(f"Error sending request: {e}")
+                error_msg = f"Error sending request: {e}"
+                self.device_logger.error(error_msg)
+                logger.error(error_msg)
+                
+                if device_state:
+                    device_state.record_error(str(e))
+                
                 return None

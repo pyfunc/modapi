@@ -129,7 +129,6 @@ def get_baudrates() -> Dict[str, int]:
         if not _baudrates:
             # Fallback default baudrates
             _baudrates = {
-                "4800": 0,
                 "57600": 1,  # Updated from 9600 to 57600
                 "115200": 5
             }
@@ -174,7 +173,7 @@ def get_config_value(key: str, default: Any = None) -> Any:
 # Get baudrates array
 def get_baudrates_array():
     constants = _load_constants()
-    return constants.get('baudrates', [57600, 115200, 9600])  # Updated default baudrates
+    return constants.get('baudrates', [57600, 115200])  # Updated default baudrates
 
 # Get prioritized baudrates for auto-detection
 def get_prioritized_baudrates():

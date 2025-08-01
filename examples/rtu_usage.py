@@ -21,7 +21,7 @@ def example_basic_usage():
         print(f"Błąd połączenia: {result}")
     
     # Utworzenie klienta RTU
-    client = create_rtu_client('/dev/ttyACM0', 9600, 1.0)
+    client = create_rtu_client('/dev/ttyACM0', 57600, 1.0)
     
     if client.connect():
         print("Połączono z urządzeniem Modbus")
@@ -67,7 +67,7 @@ def example_context_manager():
     """Przykład użycia z context managerem"""
     print("=== Context Manager ===")
     
-    with ModbusRTU('/dev/ttyACM0', 9600) as client:
+    with ModbusRTU('/dev/ttyACM0', 57600) as client:
         # Test połączenia
         success, info = client.test_connection(1)
         if success:
@@ -99,7 +99,7 @@ def example_monitoring():
     """Przykład monitorowania cewek"""
     print("=== Monitorowanie cewek ===")
     
-    client = ModbusRTU('/dev/ttyACM0', 9600)
+    client = ModbusRTU('/dev/ttyACM0', 57600)
     
     if client.connect():
         print("Rozpoczynam monitorowanie cewek (Ctrl+C aby przerwać)")
@@ -138,7 +138,7 @@ def example_advanced_operations():
     """Zaawansowane operacje Modbus"""
     print("=== Zaawansowane operacje ===")
     
-    with ModbusRTU('/dev/ttyACM0', 9600) as client:
+    with ModbusRTU('/dev/ttyACM0', 57600) as client:
         # Test połączenia z różnymi unit ID
         for unit_id in [1, 2, 3]:
             success, result = client.test_connection(unit_id)
@@ -175,13 +175,13 @@ def example_error_handling():
     print("=== Obsługa błędów ===")
     
     # Test z nieistniejącym portem
-    client = ModbusRTU('/dev/ttyNONEXISTENT', 9600)
+    client = ModbusRTU('/dev/ttyNONEXISTENT', 57600)
     
     if not client.connect():
         print("Oczekiwany błąd: nie udało się połączyć z nieistniejącym portem")
     
     # Test z istniejącym portem
-    client = ModbusRTU('/dev/ttyACM0', 9600)
+    client = ModbusRTU('/dev/ttyACM0', 57600)
     
     if client.connect():
         # Test z nieprawidłowym unit ID

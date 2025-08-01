@@ -25,7 +25,7 @@ if __name__ == "__main__":
     # with a built-in HTML client interface
     run_ws_server(
         port=None,  # Auto-detect
-        baudrate=9600,
+        baudrate=57600,
         timeout=1.0,
         host='0.0.0.0',
         api_port=5005,

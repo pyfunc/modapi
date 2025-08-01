@@ -27,7 +27,7 @@
         "timeout": 1.0,
         "unit_id": 1
     },
-    "baudrates": [57600, 115200, 19200, 38400, 9600],
+    "baudrates": [57600, 115200, 19200, 38400],
     "prioritized_baudrates": [57600, 115200],
     "auto_detect": {
         "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],

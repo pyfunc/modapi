@@ -20,6 +20,13 @@ from .protocol import (
     parse_read_registers_response, parse_response
 )
 from .utils import find_serial_ports, test_modbus_port, scan_for_devices, detect_device_type
+from modapi.config import (
+    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
+    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
+    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
+    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
+    BAUDRATES, PRIORITIZED_BAUDRATES
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +59,7 @@ class ModbusRTUClient(ModbusRTU):
             return None
         
         request = build_read_request(unit_id, FUNC_READ_COILS, address, count)
-        response = self._send_request(unit_id, FUNC_READ_COILS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_READ_COILS)
         
         if response is None:
             return None
@@ -75,7 +82,7 @@ class ModbusRTUClient(ModbusRTU):
             return None
         
         request = build_read_request(unit_id, FUNC_READ_DISCRETE_INPUTS, address, count)
-        response = self._send_request(unit_id, FUNC_READ_DISCRETE_INPUTS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_READ_DISCRETE_INPUTS)
         
         if response is None:
             return None
@@ -98,7 +105,7 @@ class ModbusRTUClient(ModbusRTU):
             return None
         
         request = build_read_request(unit_id, FUNC_READ_HOLDING_REGISTERS, address, count)
-        response = self._send_request(unit_id, FUNC_READ_HOLDING_REGISTERS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_READ_HOLDING_REGISTERS)
         
         if response is None:
             return None
@@ -121,7 +128,7 @@ class ModbusRTUClient(ModbusRTU):
             return None
         
         request = build_read_request(unit_id, FUNC_READ_INPUT_REGISTERS, address, count)
-        response = self._send_request(unit_id, FUNC_READ_INPUT_REGISTERS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_READ_INPUT_REGISTERS)
         
         if response is None:
             return None
@@ -144,7 +151,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_single_coil_request(unit_id, address, value)
-        response = self._send_request(unit_id, FUNC_WRITE_SINGLE_COIL, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_COIL)
         
         return response is not None
     
@@ -164,7 +171,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_single_register_request(unit_id, address, value)
-        response = self._send_request(unit_id, FUNC_WRITE_SINGLE_REGISTER, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_WRITE_SINGLE_REGISTER)
         
         return response is not None
     
@@ -184,7 +191,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_multiple_coils_request(unit_id, address, values)
-        response = self._send_request(unit_id, FUNC_WRITE_MULTIPLE_COILS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_COILS)
         
         return response is not None
     
@@ -204,7 +211,7 @@ class ModbusRTUClient(ModbusRTU):
             return False
         
         request = build_write_multiple_registers_request(unit_id, address, values)
-        response = self._send_request(unit_id, FUNC_WRITE_MULTIPLE_REGISTERS, request[2:-2], max_retries=3)
+        response = self.send_request(request, unit_id, FUNC_WRITE_MULTIPLE_REGISTERS)
         
         return response is not None
     
@@ -282,7 +289,7 @@ class ModbusRTUClient(ModbusRTU):
         baudrates = BAUDRATES
         # Add more common baudrates if the list is too short
         if len(baudrates) < 3:
-            baudrates = list(set(baudrates + [57600, 19200, 38400, 57600, 115200]))
+            baudrates = list(set(baudrates + PRIORITIZED_BAUDRATES))
         
         # Ensure we have a comprehensive list of unit IDs to test
         unit_ids = list(set(AUTO_DETECT_UNIT_IDS + [0, 1, 2, 3, 4, 5, 10, 15, 16, 247]))  # Include broadcast and common addresses

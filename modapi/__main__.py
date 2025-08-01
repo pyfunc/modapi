@@ -34,7 +34,7 @@ def auto_detect_modbus_port(baudrates=None, debug=False, unit_id=None):
         dict: Dictionary with port information if found, None otherwise
     """
     if baudrates is None:
-        baudrates = [9600, 19200, 38400, 57600, 115200]
+        baudrates = PRIORITIZED_BAUDRATES
     
     ports = find_serial_ports()
     if debug:
@@ -186,7 +186,7 @@ def main():
         # If a specific port is provided, test just that port
         if args.port:
             print(f"🔍 Testing specified port: {args.port}")
-            baudrates = [args.baudrate] if args.baudrate else [9600, 19200, 38400, 57600, 115200]
+            baudrates = [args.baudrate] if args.baudrate else PRIORITIZED_BAUDRATES
             
             for baudrate in baudrates:
                 print(f"  ⚙️  {baudrate} baud...", end=" ")

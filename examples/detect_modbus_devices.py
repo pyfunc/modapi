@@ -43,7 +43,7 @@ def detect_devices(ports: Optional[List[str]] = None,
         ports = find_serial_ports()
     
     if baudrates is None:
-        baudrates = [9600, 19200, 38400]
+        baudrates = [19200, 38400]
     
     if unit_ids is None:
         unit_ids = list(range(1, 11))  # Test unit IDs 1-10 by default
@@ -151,8 +151,8 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Detect Modbus RTU devices')
     parser.add_argument('--ports', nargs='+', help='Serial ports to scan (default: auto-detect)')
-    parser.add_argument('--baudrates', type=int, nargs='+', default=[9600, 19200, 38400], 
-                        help='Baudrates to test (default: 9600, 19200, 38400)')
+    parser.add_argument('--baudrates', type=int, nargs='+', default=[19200, 38400],
+                        help='Baudrates to test (default: 19200, 38400)')
     parser.add_argument('--unit-ids', type=int, nargs='+', 
                         help='Unit IDs to scan (default: 1-10)')
     parser.add_argument('--timeout', type=float, default=0.5,
