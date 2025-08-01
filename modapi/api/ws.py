@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Dict, Any, Optional, List, Callable
 
+from ..config import DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
 from ..api.rtu import ModbusRTU
 
 # Configure logging
@@ -35,8 +36,8 @@ class ModbusConnectionPool:
         self._cleanup_thread = None
         self._running = False
     
-    def get_connection(self, port: str, baudrate: int = 57600,
-                      timeout: float = 1.0, **kwargs) -> ModbusRTU:
+    def get_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE,
+                      timeout: float = DEFAULT_TIMEOUT, **kwargs) -> ModbusRTU:
         """
         Get a connection from the pool or create a new one
         
@@ -75,7 +76,7 @@ class ModbusConnectionPool:
                 logger.error(f"Failed to connect to {port}")
                 raise ConnectionError(f"Failed to connect to {port}")
     
-    def release_connection(self, port: str, baudrate: int = 57600):
+    def release_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE):
         """
         Mark connection as no longer in use
         
@@ -88,7 +89,7 @@ class ModbusConnectionPool:
             if key in self.connections:
                 self.last_used[key] = time.time()
     
-    def close_connection(self, port: str, baudrate: int = 57600):
+    def close_connection(self, port: str, baudrate: int = DEFAULT_BAUDRATE):
         """
         Close and remove a connection
         
@@ -185,7 +186,7 @@ def create_ws_app(port: Optional[str] = None,
     
     Args:
         port: Modbus serial port (default: auto-detect)
-        baudrate: Baud rate (default: 57600)
+        baudrate: Baud rate (default: from config)
         timeout: Timeout in seconds (default: 1.0)
         host: Host to bind the API server (default: 0.0.0.0)
         api_port: Port to bind the API server (default: 5005)
@@ -215,7 +216,7 @@ def create_ws_app(port: Optional[str] = None,
         port = '/dev/ttyACM0'
     
     if baudrate is None:
-        baudrate = 57600
+        baudrate = DEFAULT_BAUDRATE
     
     if timeout is None:
         timeout = 1.0
@@ -613,7 +614,7 @@ def run_ws_server(port: Optional[str] = None,
     
     Args:
         port: Modbus serial port (default: auto-detect)
-        baudrate: Baud rate (default: 57600)
+        baudrate: Baud rate (default: from config)
         timeout: Timeout in seconds (default: 1.0)
         host: Host to bind the API server (default: 0.0.0.0)
         api_port: Port to bind the API server (default: 5005)

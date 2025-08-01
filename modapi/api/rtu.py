@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple, Any
 # Import from new modular implementation
 from modapi.rtu.client import ModbusRTUClient
 from modapi.rtu.utils import find_serial_ports, test_modbus_port
+from modapi.config import DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
 from modapi.rtu.protocol import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
@@ -83,9 +84,9 @@ class ModbusRTU(ModbusRTUClient):
         return result['success'], result
 
 # Convenience functions for backward compatibility
-def create_rtu_client(port: str = '/dev/ttyACM0', 
-                     baudrate: int = 57600,
-                     timeout: float = 1.0) -> ModbusRTU:
+def create_rtu_client(port: str = DEFAULT_PORT, 
+                     baudrate: int = DEFAULT_BAUDRATE,
+                     timeout: float = DEFAULT_TIMEOUT) -> ModbusRTU:
     """
     Create RTU client instance
     
@@ -101,9 +102,9 @@ def create_rtu_client(port: str = '/dev/ttyACM0',
     client.connect()
     return client
 
-def test_rtu_connection(port: str = '/dev/ttyACM0',
-                       baudrate: int = 57600,
-                       unit_id: int = 1) -> Tuple[bool, Dict]:
+def test_rtu_connection(port: str = DEFAULT_PORT,
+                       baudrate: int = DEFAULT_BAUDRATE,
+                       unit_id: int = DEFAULT_UNIT_ID) -> Tuple[bool, Dict]:
     """
     Test RTU connection quickly
     

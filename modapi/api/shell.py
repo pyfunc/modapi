@@ -6,6 +6,7 @@ import json
 import logging
 from typing import Dict, Any, Optional
 
+from ..config import DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
 from .rtu import ModbusRTU, test_rtu_connection
 from .tcp import ModbusTCP, test_tcp_connection, scan_modbus_network
 
@@ -42,7 +43,7 @@ Options:
   -v, --verbose    Enable verbose logging output
   -h, --help       Show this help message
   -p, --port PORT  Specify Modbus port (default: auto-detect or from .env)
-  -b, --baud BAUD  Specify baud rate (default: from .env or 57600)
+  -b, --baud BAUD  Specify baud rate (default: from .env or config)
   -t, --timeout T  Specify timeout in seconds (default: from .env or 1.0)
 
 Commands:
@@ -68,7 +69,7 @@ def interactive_mode(port: Optional[str] = None, baudrate: Optional[int] = None,
     
     Args:
         port: Serial port (default: auto-detect)
-        baudrate: Baud rate (default: from .env or 57600)
+        baudrate: Baud rate (default: from .env or config)
         timeout: Timeout in seconds (default: from .env or 1.0)
         verbose: Enable verbose logging
     """
@@ -86,7 +87,7 @@ def interactive_mode(port: Optional[str] = None, baudrate: Optional[int] = None,
     # Initialize client
     client = ModbusRTU(
         port=port,
-        baudrate=baudrate or 57600,
+        baudrate=baudrate or DEFAULT_BAUDRATE,
         timeout=timeout or 1.0
     )
     

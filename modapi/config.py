@@ -93,14 +93,14 @@ def get_default_settings():
     constants = _load_constants()
     return constants.get('default_settings', {
         "port": "/dev/ttyACM0",
-        "baudrate": 57600,  # Updated default baudrate
+        "baudrate": 19200,  # Updated default baudrate
         "timeout": 1.0,
         "unit_id": 1
     })
 
 DEFAULT_SETTINGS = get_default_settings()
 DEFAULT_PORT = DEFAULT_SETTINGS.get("port", '/dev/ttyACM0')
-DEFAULT_BAUDRATE = DEFAULT_SETTINGS.get("baudrate", 57600)  # Updated default baudrate
+DEFAULT_BAUDRATE = DEFAULT_SETTINGS.get("baudrate", 19200)  # Updated default baudrate
 DEFAULT_TIMEOUT = DEFAULT_SETTINGS.get("timeout", 1.0)
 DEFAULT_UNIT_ID = DEFAULT_SETTINGS.get("unit_id", 1)
 

@@ -72,7 +72,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                 
             # Try the first available port
             port = ports[0]
-            success, result = test_rtu_connection(port=port, baudrate=baudrate or 57600)
+            success, result = test_rtu_connection(port=port, baudrate=baudrate or DEFAULT_BAUDRATE)
             
             if success:
                 response['port_source'] = 'auto_detected'
@@ -83,7 +83,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         else:
             response['port_source'] = 'command_line'
             # Test the provided port
-            success, result = test_rtu_connection(port=port, baudrate=baudrate or 57600)
+            success, result = test_rtu_connection(port=port, baudrate=baudrate or DEFAULT_BAUDRATE)
             if not success:
                 response['error'] = f"Failed to connect to port {port}. {result.get('error', '')}"
                 response['port'] = port  # Ensure port is included in the error response

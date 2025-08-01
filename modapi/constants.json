@@ -27,15 +27,15 @@
         "timeout": 1.0,
         "unit_id": 1
     },
-    "baudrates": [57600, 115200, 19200, 38400],
-    "prioritized_baudrates": [57600, 115200],
+    "baudrates": [9600, 19200, 38400, 57600, 115200],
+    "prioritized_baudrates": [9600, 19200],
     "auto_detect": {
         "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],
         "unit_ids": [0, 1, 2]
     },
     "mock": {
         "port": "MOCK",
-        "baudrate": 57600,
+        "baudrate": 19200,
         "unit_id": 1
     }
 }

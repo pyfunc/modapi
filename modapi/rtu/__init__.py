@@ -31,6 +31,9 @@ from .utils import (
     test_rtu_connection
 )
 
+# Import configuration
+from modapi.config import DEFAULT_PORT, DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, DEFAULT_UNIT_ID
+
 # Device-specific classes
 from .devices import WaveshareIO8CH, WaveshareAnalogInput8CH
 
@@ -47,9 +50,9 @@ try:
     from ..rtu import test_rtu_connection, create_rtu_client
 except ImportError:
     # Define the functions here as a fallback
-    def create_rtu_client(port: str = '/dev/ttyACM0', 
-                        baudrate: int = 57600,
-                        timeout: float = 1.0):
+    def create_rtu_client(port: str = DEFAULT_PORT, 
+                        baudrate: int = DEFAULT_BAUDRATE,
+                        timeout: float = DEFAULT_TIMEOUT):
         """Create RTU client instance"""
         client = ModbusRTUClient(port=port, baudrate=baudrate, timeout=timeout)
         client.connect()

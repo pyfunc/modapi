@@ -14,7 +14,8 @@ from modapi.config import (
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
     FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
     MODE_NORMAL, MODE_LINKAGE, MODE_TOGGLE, MODE_EDGE_TRIGGER,
-    TYPE_0_5V, TYPE_0_10V, TYPE_0_20MA, TYPE_4_20MA
+    TYPE_0_5V, TYPE_0_10V, TYPE_0_20MA, TYPE_4_20MA,
+    DEFAULT_BAUDRATE
 )
 from .protocol import (
     build_read_request, build_write_single_coil_request,
@@ -33,7 +34,7 @@ class WaveshareIO8CH(ModbusRTU):
     http://www.waveshare.com/wiki/Modbus_RTU_IO_8CH
     """
     
-    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 57600, timeout: float = 1.0):
+    def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = DEFAULT_BAUDRATE, timeout: float = 1.0):
         """Initialize Waveshare IO 8CH module connection"""
         super().__init__(port=port, baudrate=baudrate, timeout=timeout)
         logger.info("Initialized Waveshare IO 8CH module interface")

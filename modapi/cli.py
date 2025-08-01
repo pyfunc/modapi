@@ -25,7 +25,7 @@ def setup_parser() -> argparse.ArgumentParser:
     
     # Global options
     parser.add_argument('--port', '-p', help='Serial port (e.g., /dev/ttyACM0)')
-    parser.add_argument('--baudrate', '-b', type=int, default=57600, 
+    parser.add_argument('--baudrate', '-b', type=int, default=DEFAULT_BAUDRATE,
                        help='Baud rate (default: 57600)')
     parser.add_argument('--timeout', '-t', type=float, default=1.0,
                        help='Timeout in seconds (default: 1.0)')

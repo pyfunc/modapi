@@ -50,7 +50,7 @@ def find_serial_ports() -> List[str]:
     logger.info(f"Found {len(available_ports)} serial ports: {available_ports}")
     return available_ports
 
-def test_modbus_port(port: str, baudrate: int = 57600, timeout: float = 0.5, unit_id: int = 1) -> bool:
+def test_modbus_port(port: str, baudrate: int = DEFAULT_BAUDRATE, timeout: float = 0.5, unit_id: int = 1) -> bool:
     """
     Test if a serial port has a Modbus device connected
     
@@ -241,7 +241,7 @@ def detect_device_type(port: str, baudrate: int, unit_id: int) -> Optional[str]:
         return None
 
 
-def test_rtu_connection(port: str, baudrate: int = 57600, timeout: float = 0.5, unit_id: int = 1) -> Dict[str, Any]:
+def test_rtu_connection(port: str, baudrate: int = DEFAULT_BAUDRATE, timeout: float = 0.5, unit_id: int = 1) -> Dict[str, Any]:
     """
     Test connection to a Modbus RTU device
     

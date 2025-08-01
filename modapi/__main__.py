@@ -21,6 +21,11 @@ from .api.rtu import (
     create_rtu_client
 )
 
+# Import configuration
+from .config import PRIORITIZED_BAUDRATES
+# Import configuration variables
+from .config import BAUDRATES, PRIORITIZED_BAUDRATES, AUTO_DETECT_UNIT_IDS
+
 def auto_detect_modbus_port(baudrates=None, debug=False, unit_id=None):
     """
     Auto-detect Modbus RTU port
