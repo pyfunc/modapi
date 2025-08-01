@@ -28,6 +28,56 @@ from .utils import find_serial_ports, test_modbus_port, scan_for_devices, detect
 # Device-specific classes
 from .devices import WaveshareIO8CH, WaveshareAnalogInput8CH
 
+# Import compatibility functions from the parent module
+import sys
+import os
+parent_dir = os.path.dirname(os.path.dirname(__file__))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# Import compatibility functions from the original rtu.py
+# We need to do this in a try/except block to avoid circular imports
+try:
+    from ..rtu import test_rtu_connection, create_rtu_client
+except ImportError:
+    # Define the functions here as a fallback
+    def create_rtu_client(port: str = '/dev/ttyACM0', 
+                        baudrate: int = 9600,
+                        timeout: float = 1.0):
+        """Create RTU client instance"""
+        client = ModbusRTUClient(port=port, baudrate=baudrate, timeout=timeout)
+        client.connect()
+        return client
+
+    def test_rtu_connection(port: str = '/dev/ttyACM0',
+                        baudrate: int = 9600,
+                        unit_id: int = 1):
+        """Test RTU connection quickly"""
+        result = {
+            'port': port,
+            'baudrate': baudrate,
+            'unit_id': unit_id,
+            'success': False,
+            'error': None
+        }
+        
+        try:
+            client = ModbusRTUClient(port=port, baudrate=baudrate, timeout=1.0)
+            if client.connect():
+                # Try to read a register to verify connection
+                response = client.read_holding_registers(0, 1, unit_id)
+                if response is not None:
+                    result['success'] = True
+                else:
+                    result['error'] = "No response from device"
+                client.disconnect()
+            else:
+                result['error'] = "Failed to connect to port"
+        except Exception as e:
+            result['error'] = str(e)
+        
+        return result['success'], result
+
 # For backward compatibility with existing code
 __all__ = [
     'ModbusRTU',
@@ -48,5 +98,7 @@ __all__ = [
     'scan_for_devices',
     'detect_device_type',
     'WaveshareIO8CH',
-    'WaveshareAnalogInput8CH'
+    'WaveshareAnalogInput8CH',
+    'test_rtu_connection',
+    'create_rtu_client'
 ]

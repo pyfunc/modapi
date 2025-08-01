@@ -24,7 +24,63 @@ from .rtu.protocol import (
 logger = logging.getLogger(__name__)
 
 # For backward compatibility, use ModbusRTUClient as ModbusRTU
-ModbusRTU = ModbusRTUClient
+class ModbusRTU(ModbusRTUClient):
+    """
+    Direct RTU Modbus communication class
+    Bezpośrednia komunikacja Modbus RTU przez port szeregowy
+    
+    This is a compatibility wrapper around ModbusRTUClient
+    """
+    
+    def auto_detect(self, ports: List[str] = None) -> Dict[str, Any]:
+        """
+        Auto-detect and connect to first available Modbus RTU device
+        
+        Args:
+            ports: List of ports to try (default: auto-detect)
+            
+        Returns:
+            Dict[str, Any]: Configuration dict or None if no device found
+        """
+        # Call the class method from ModbusRTUClient
+        return self.__class__.auto_detect(ports)
+        
+    def test_connection(self, unit_id: int = 1) -> Tuple[bool, Dict]:
+        """
+        Test connection to device
+        
+        Args:
+            unit_id: Unit ID to test
+            
+        Returns:
+            Tuple[bool, Dict]: (success, result_dict)
+        """
+        result = {
+            'port': self.port,
+            'baudrate': self.baudrate,
+            'unit_id': unit_id,
+            'success': False,
+            'error': None
+        }
+        
+        try:
+            # Try to read a register to verify connection
+            response = self.read_holding_registers(0, 1, unit_id)
+            if response is not None:
+                result['success'] = True
+            else:
+                result['error'] = "No response from device"
+                
+            # Try reading coils if registers didn't work
+            if not result['success']:
+                response = self.read_coils(0, 8, unit_id)
+                if response is not None:
+                    result['success'] = True
+                    result['error'] = None
+        except Exception as e:
+            result['error'] = str(e)
+        
+        return result['success'], result
 
 # Convenience functions for backward compatibility
 def create_rtu_client(port: str = '/dev/ttyACM0', 

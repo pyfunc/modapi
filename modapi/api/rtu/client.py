@@ -261,18 +261,52 @@ class ModbusRTUClient(ModbusRTU):
         return scan_for_devices()
     
     @classmethod
-    def auto_detect(cls) -> Optional['ModbusRTUClient']:
+    def auto_detect(cls, ports: List[str] = None) -> Dict[str, Any]:
         """
         Auto-detect and connect to first available Modbus RTU device
         
+        Args:
+            ports: List of ports to try (default: auto-detect)
+            
         Returns:
-            Optional[ModbusRTUClient]: Connected client or None if no device found
+            Dict[str, Any]: Configuration dict or None if no device found
         """
-        devices = scan_for_devices()
-        if devices:
-            device = devices[0]
-            client = cls(port=device['port'], baudrate=device['baudrate'])
-            if client.connect():
-                return client
+        if ports is None:
+            ports = find_serial_ports()
         
+        # Try each port with common baudrates
+        baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
+        unit_ids = [1, 2, 3, 0]  # Include broadcast address 0
+        
+        for port in ports:
+            for baudrate in baudrates:
+                for unit_id in unit_ids:
+                    try:
+                        client = cls(port=port, baudrate=baudrate, timeout=0.5)
+                        if client.connect():
+                            # Try to read a register to verify connection
+                            response = client.read_holding_registers(0, 1, unit_id)
+                            if response is not None:
+                                logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
+                                return {
+                                    'port': port,
+                                    'baudrate': baudrate,
+                                    'unit_id': unit_id
+                                }
+                            
+                            # Try reading coils if registers didn't work
+                            response = client.read_coils(0, 8, unit_id)
+                            if response is not None:
+                                logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
+                                return {
+                                    'port': port,
+                                    'baudrate': baudrate,
+                                    'unit_id': unit_id
+                                }
+                            
+                            client.disconnect()
+                    except Exception as e:
+                        logger.debug(f"Error testing {port} at {baudrate} with unit_id={unit_id}: {e}")
+        
+        logger.warning("No working configuration found")
         return None

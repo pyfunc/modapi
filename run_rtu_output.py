@@ -118,15 +118,59 @@ HTML_TEMPLATE = """
 """
 
 
+# Helper function to auto-detect RTU devices
+def auto_detect(ports):
+    """Auto-detect Modbus RTU device on specified ports"""
+    if not ports:
+        return None
+        
+    # Try each port with common baudrates
+    baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
+    unit_ids = [1, 2, 3, 0]  # Include broadcast address 0
+    
+    for port in ports:
+        for baudrate in baudrates:
+            for unit_id in unit_ids:
+                try:
+                    client = ModbusRTU(port=port, baudrate=baudrate, timeout=0.5)
+                    if client.connect():
+                        # Try to read a register to verify connection
+                        response = client.read_holding_registers(0, 1, unit_id)
+                        if response is not None:
+                            logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
+                            client.disconnect()
+                            return {
+                                'port': port,
+                                'baudrate': baudrate,
+                                'unit_id': unit_id
+                            }
+                        
+                        # Try reading coils if registers didn't work
+                        response = client.read_coils(0, 8, unit_id)
+                        if response is not None:
+                            logger.info(f"Found working configuration: {port}, {baudrate}, unit_id={unit_id}")
+                            client.disconnect()
+                            return {
+                                'port': port,
+                                'baudrate': baudrate,
+                                'unit_id': unit_id
+                            }
+                        
+                        client.disconnect()
+                except Exception as e:
+                    logger.debug(f"Error testing {port} at {baudrate} with unit_id={unit_id}: {e}")
+    
+    logger.warning("No working configuration found")
+    return None
+
 def init_rtu():
     """Inicjalizuj RTU i znajdź działającą konfigurację"""
     global RTU_CONFIG
     
     logger.info("Inicjalizacja RTU...")
-    client = ModbusRTU()
     
     # Spróbuj auto-detekcji
-    RTU_CONFIG = client.auto_detect(['/dev/ttyACM0', '/dev/ttyUSB0'])
+    RTU_CONFIG = auto_detect(['/dev/ttyACM0', '/dev/ttyUSB0'])
     
     if RTU_CONFIG:
         logger.info(f"✅ Znaleziono działającą konfigurację RTU: {RTU_CONFIG}")
