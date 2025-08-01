@@ -3,12 +3,13 @@ Direct RTU Modbus Communication Module
 Bezpośrednia komunikacja z /dev/ttyACM0 bez PyModbus
 """
 
+import logging
+import os
 import serial
 import struct
 import time
-import logging
-from typing import Optional, List, Tuple, Union, Dict, Any
 from threading import Lock
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,20 @@ class ModbusRTU:
             with self.lock:
                 if self.serial_conn and self.serial_conn.is_open:
                     self.serial_conn.close()
+                
+                # Try to auto-detect serial port
+                if self.port is None:
+                    # Try to find Arduino or USB-to-Serial device
+                    for port_info in serial.tools.list_ports.comports():
+                        if ("Arduino" in port_info.description or
+                                "ACM" in port_info.device or
+                                "ttyUSB" in port_info.device):
+                            self.port = port_info.device
+                            break
+                
+                if self.port is None:
+                    logger.error("Failed to auto-detect serial port")
+                    return False
                 
                 self.serial_conn = serial.Serial(
                     port=self.port,
@@ -179,24 +194,48 @@ class ModbusRTU:
         # Check for exception response
         if function_code & 0x80:
             exception_code = data[0] if len(data) > 0 else 0
-            logger.error(f"Modbus exception: {exception_code}")
+            exception_messages = {
+                1: "Illegal function",
+                2: "Illegal data address",
+                3: "Illegal data value",
+                4: "Slave device failure",
+                5: "Acknowledge",
+                6: "Slave device busy",
+                7: "Negative acknowledge",
+                8: "Memory parity error",
+                10: "Gateway path unavailable",
+                11: "Gateway target device failed to respond"
+            }
+            error_msg = exception_messages.get(exception_code, f"Unknown exception code: {exception_code}")
+            logger.error(f"Modbus exception: {error_msg} (code: {exception_code})")
             return None
         
-        # Validate function code
+        # Handle function code mismatch with special case for write/read confusion
+        # Some devices respond with echo of the write command when reading
         if function_code != expected_function:
-            logger.error(f"Function code mismatch: got {function_code}, expected {expected_function}")
-            return None
+            # Special case: If we expected read coils (0x01) but got write coil (0x05)
+            # or vice versa, this might be a device quirk
+            if ((expected_function == self.FUNC_READ_COILS and 
+                 function_code == self.FUNC_WRITE_SINGLE_COIL) or
+                (expected_function == self.FUNC_WRITE_SINGLE_COIL and 
+                 function_code == self.FUNC_READ_COILS)):
+                logger.warning(f"Function code mismatch but potentially compatible: got {function_code}, expected {expected_function}")
+                # Continue processing despite the mismatch
+            else:
+                logger.error(f"Function code mismatch: got {function_code}, expected {expected_function}")
+                return None
         
         return data
     
-    def _send_request(self, unit_id: int, function_code: int, data: bytes) -> Optional[bytes]:
+    def _send_request(self, unit_id: int, function_code: int, data: bytes, max_retries: int = 3) -> Optional[bytes]:
         """
-        Send request and receive response
+        Send request and receive response with retries
         
         Args:
             unit_id: Slave unit ID
             function_code: Modbus function code
             data: Request data
+            max_retries: Maximum number of retry attempts
             
         Returns:
             Optional[bytes]: Response data or None if error
@@ -205,41 +244,65 @@ class ModbusRTU:
             logger.error("Not connected to serial port")
             return None
         
-        try:
-            with self.lock:
-                # Clear input buffer
-                self.serial_conn.reset_input_buffer()
-                
-                # Build and send request
-                request = self._build_request(unit_id, function_code, data)
-                logger.debug(f"Sending: {request.hex()}")
-                self.serial_conn.write(request)
-                
-                # Wait for response
-                time.sleep(0.01)  # Small delay for response
-                
-                # Read response
-                response = b""
-                start_time = time.time()
-                
-                while len(response) < 4 and (time.time() - start_time) < self.timeout:
-                    if self.serial_conn.in_waiting:
-                        response += self.serial_conn.read(self.serial_conn.in_waiting)
-                    else:
-                        time.sleep(0.001)
-                
-                if len(response) < 4:
-                    logger.error("Timeout waiting for response")
-                    return None
-                
-                logger.debug(f"Received: {response.hex()}")
-                
-                # Parse response
-                return self._parse_response(response, unit_id, function_code)
-                
-        except Exception as e:
-            logger.error(f"Communication error: {e}")
-            return None
+        retries = 0
+        last_error = None
+        
+        while retries <= max_retries:
+            try:
+                with self.lock:
+                    # Clear both input and output buffers
+                    self.serial_conn.reset_input_buffer()
+                    self.serial_conn.reset_output_buffer()
+                    
+                    # Small delay to ensure buffers are cleared
+                    time.sleep(0.02)
+                    
+                    # Build and send request
+                    request = self._build_request(unit_id, function_code, data)
+                    logger.debug(f"Sending: {request.hex()} (attempt {retries+1}/{max_retries+1})")
+                    self.serial_conn.write(request)
+                    self.serial_conn.flush()  # Ensure data is written
+                    
+                    # Wait for response
+                    time.sleep(0.05)  # Increased delay for response
+                    
+                    # Read response
+                    response = b""
+                    start_time = time.time()
+                    
+                    while len(response) < 4 and (time.time() - start_time) < self.timeout:
+                        if self.serial_conn.in_waiting:
+                            response += self.serial_conn.read(self.serial_conn.in_waiting)
+                        else:
+                            time.sleep(0.005)  # Slightly longer polling interval
+                    
+                    if len(response) < 4:
+                        last_error = "Timeout waiting for response"
+                        logger.warning(f"{last_error} (attempt {retries+1}/{max_retries+1})")
+                        retries += 1
+                        continue
+                    
+                    logger.debug(f"Received: {response.hex()}")
+                    
+                    # Parse response
+                    result = self._parse_response(response, unit_id, function_code)
+                    
+                    if result is not None:
+                        return result
+                    
+                    # If we get here, parsing failed but we got a response
+                    last_error = "Failed to parse response"
+                    logger.warning(f"{last_error} (attempt {retries+1}/{max_retries+1})")
+                    retries += 1
+                    
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Communication error: {e} (attempt {retries+1}/{max_retries+1})")
+                retries += 1
+        
+        # All retries failed
+        logger.error(f"Failed after {max_retries+1} attempts. Last error: {last_error}")
+        return None
     
     def read_coils(self, unit_id: int, address: int, count: int) -> Optional[List[bool]]:
         """

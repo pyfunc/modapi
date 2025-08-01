@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modbus RTU WebSocket Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.read {
+            background-color: #2196F3;
+        }
+        button.read:hover {
+            background-color: #0b7dda;
+        }
+        button.toggle {
+            background-color: #ff9800;
+        }
+        button.toggle:hover {
+            background-color: #e68a00;
+        }
+        input[type=number] {
+            padding: 8px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            width: 80px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .connected {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .disconnected {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+        .coil-status {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .coil-on {
+            background-color: #4CAF50;
+        }
+        .coil-off {
+            background-color: #f44336;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Modbus RTU WebSocket Client</h1>
+    <div id="connection-status" class="status disconnected">Disconnected</div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Coil Control</h2>
+            <div>
+                <label for="coil-address">Coil Address:</label>
+                <input type="number" id="coil-address" value="0" min="0">
+                <button id="read-coil" class="read">Read Coil</button>
+                <button id="toggle-coil" class="toggle">Toggle Coil</button>
+            </div>
+            <div id="coil-result" style="margin-top: 10px;">
+                <div class="coil-status coil-off"></div>
+                <span>OFF</span>
+            </div>
+            
+            <h3>Multiple Coils</h3>
+            <div>
+                <label for="coils-start">Start Address:</label>
+                <input type="number" id="coils-start" value="0" min="0">
+                <label for="coils-count">Count:</label>
+                <input type="number" id="coils-count" value="8" min="1" max="100">
+                <button id="read-coils" class="read">Read Coils</button>
+            </div>
+            <div id="coils-result">
+                <table id="coils-table">
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Register Control</h2>
+            <div>
+                <label for="register-address">Register Address:</label>
+                <input type="number" id="register-address" value="0" min="0">
+                <label for="register-value">Value:</label>
+                <input type="number" id="register-value" value="0" min="0" max="65535">
+                <button id="read-register" class="read">Read Register</button>
+                <button id="write-register">Write Register</button>
+            </div>
+            <div id="register-result" style="margin-top: 10px;">
+                Value: <span id="register-value-display">0</span>
+                (Hex: <span id="register-hex-display">0x0000</span>)
+            </div>
+            
+            <h3>Multiple Registers</h3>
+            <div>
+                <label for="registers-start">Start Address:</label>
+                <input type="number" id="registers-start" value="0" min="0">
+                <label for="registers-count">Count:</label>
+                <input type="number" id="registers-count" value="4" min="1" max="100">
+                <button id="read-registers" class="read">Read Registers</button>
+            </div>
+            <div id="registers-result">
+                <table id="registers-table">
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Value</th>
+                            <th>Hex</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Communication Log</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // WebSocket connection
+        let socket;
+        const connectWebSocket = () => {
+            // Connect to the WebSocket server
+            socket = io.connect('http://' + window.location.hostname + ':5006');
+            
+            // Connection events
+            socket.on('connect', () => {
+                document.getElementById('connection-status').className = 'status connected';
+                document.getElementById('connection-status').textContent = 'Connected';
+                logMessage('Connected to WebSocket server');
+                
+                // Request device info on connect
+                socket.emit('device_info');
+            });
+            
+            socket.on('disconnect', () => {
+                document.getElementById('connection-status').className = 'status disconnected';
+                document.getElementById('connection-status').textContent = 'Disconnected';
+                logMessage('Disconnected from WebSocket server');
+            });
+            
+            socket.on('connect_error', (error) => {
+                logMessage('Connection error: ' + error);
+            });
+            
+            // Response handlers
+            socket.on('device_info', (data) => {
+                logMessage('Device info: ' + JSON.stringify(data));
+            });
+            
+            socket.on('coil_read', (data) => {
+                logMessage('Coil read response: ' + JSON.stringify(data));
+                if (data.success) {
+                    updateCoilStatus(data.value);
+                } else {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('coils_read', (data) => {
+                logMessage('Coils read response: ' + JSON.stringify(data));
+                if (data.success) {
+                    updateCoilsTable(data.address, data.values);
+                } else {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('coil_write', (data) => {
+                logMessage('Coil write response: ' + JSON.stringify(data));
+                if (data.success) {
+                    updateCoilStatus(data.value);
+                } else {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('register_read', (data) => {
+                logMessage('Register read response: ' + JSON.stringify(data));
+                if (data.success) {
+                    updateRegisterValue(data.value);
+                } else {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('registers_read', (data) => {
+                logMessage('Registers read response: ' + JSON.stringify(data));
+                if (data.success) {
+                    updateRegistersTable(data.address, data.values);
+                } else {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('register_write', (data) => {
+                logMessage('Register write response: ' + JSON.stringify(data));
+                if (!data.success) {
+                    logMessage('Error: ' + data.error);
+                }
+            });
+            
+            socket.on('error', (data) => {
+                logMessage('Error: ' + data.message);
+            });
+        };
+        
+        // Helper functions
+        const logMessage = (message) => {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div>[${time}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        };
+        
+        const updateCoilStatus = (value) => {
+            const statusElement = document.querySelector('#coil-result .coil-status');
+            const textElement = document.querySelector('#coil-result span');
+            
+            if (value) {
+                statusElement.className = 'coil-status coil-on';
+                textElement.textContent = 'ON';
+            } else {
+                statusElement.className = 'coil-status coil-off';
+                textElement.textContent = 'OFF';
+            }
+        };
+        
+        const updateCoilsTable = (startAddress, values) => {
+            const tbody = document.querySelector('#coils-table tbody');
+            tbody.innerHTML = '';
+            
+            values.forEach((value, index) => {
+                const address = startAddress + index;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${address}</td>
+                    <td>${value ? '1' : '0'}</td>
+                    <td><div class="coil-status ${value ? 'coil-on' : 'coil-off'}"></div>${value ? 'ON' : 'OFF'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        };
+        
+        const updateRegisterValue = (value) => {
+            document.getElementById('register-value-display').textContent = value;
+            document.getElementById('register-hex-display').textContent = '0x' + value.toString(16).padStart(4, '0').toUpperCase();
+        };
+        
+        const updateRegistersTable = (startAddress, values) => {
+            const tbody = document.querySelector('#registers-table tbody');
+            tbody.innerHTML = '';
+            
+            values.forEach((value, index) => {
+                const address = startAddress + index;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${address}</td>
+                    <td>${value}</td>
+                    <td>0x${value.toString(16).padStart(4, '0').toUpperCase()}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        };
+        
+        // Event listeners
+        document.getElementById('read-coil').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('coil-address').value);
+            socket.emit('read_coil', { address: address, unit_id: 1 });
+        });
+        
+        document.getElementById('toggle-coil').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('coil-address').value);
+            socket.emit('toggle_coil', { address: address, unit_id: 1 });
+        });
+        
+        document.getElementById('read-coils').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('coils-start').value);
+            const count = parseInt(document.getElementById('coils-count').value);
+            socket.emit('read_coils', { address: address, count: count, unit_id: 1 });
+        });
+        
+        document.getElementById('read-register').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('register-address').value);
+            socket.emit('read_register', { address: address, unit_id: 1 });
+        });
+        
+        document.getElementById('write-register').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('register-address').value);
+            const value = parseInt(document.getElementById('register-value').value);
+            socket.emit('write_register', { address: address, value: value, unit_id: 1 });
+        });
+        
+        document.getElementById('read-registers').addEventListener('click', () => {
+            const address = parseInt(document.getElementById('registers-start').value);
+            const count = parseInt(document.getElementById('registers-count').value);
+            socket.emit('read_registers', { address: address, count: count, unit_id: 1 });
+        });
+        
+        // Initialize connection
+        window.addEventListener('load', connectWebSocket);
+    </script>
+</body>
+</html>
