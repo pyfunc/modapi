@@ -61,6 +61,23 @@ MODE_LINKAGE = modes.get("MODE_LINKAGE", 0x01)
 MODE_TOGGLE = modes.get("MODE_TOGGLE", 0x02)
 MODE_EDGE_TRIGGER = modes.get("MODE_EDGE_TRIGGER", 0x03)
 
+# Analog input types
+def get_analog_input_types():
+    constants = _load_constants()
+    analog_types = constants.get('analog_input_types', {
+        "TYPE_0_5V": 0,
+        "TYPE_0_10V": 1,
+        "TYPE_0_20MA": 2,
+        "TYPE_4_20MA": 3
+    })
+    return analog_types
+
+analog_types = get_analog_input_types()
+TYPE_0_5V = analog_types.get("TYPE_0_5V", 0x00)
+TYPE_0_10V = analog_types.get("TYPE_0_10V", 0x01)
+TYPE_0_20MA = analog_types.get("TYPE_0_20MA", 0x02)
+TYPE_4_20MA = analog_types.get("TYPE_4_20MA", 0x03)
+
 function_codes = get_function_codes()
 FUNC_READ_COILS = function_codes.get("READ_COILS", 0x01)
 FUNC_READ_DISCRETE_INPUTS = function_codes.get("READ_DISCRETE_INPUTS", 0x02)
@@ -138,21 +155,49 @@ def get_config_value(key: str, default: Any = None) -> Any:
     if env_value is not None:
         return env_value
         
-    # Try JSON config
-    # TODO: Implement JSON config lookup if needed
+    # Try JSON config from constants.json
+    constants = _load_constants()
+    sections = key.split('.')
+    
+    # Navigate through nested sections
+    current = constants
+    for section in sections[:-1]:
+        if section in current:
+            current = current[section]
+        else:
+            return default
+            
+    # Get the final value
+    if sections[-1] in current:
+        return current[sections[-1]]
     
     # Return default
     return default
 
 # Auto-detection settings
-AUTO_DETECT_PORTS = get_config_value('AUTO_DETECT_PORTS', 
-                                     ['/dev/ttyACM0', '/dev/ttyUSB0'])
-AUTO_DETECT_BAUDRATES = get_config_value('AUTO_DETECT_BAUDRATES', 
-                                         [9600, 115200, 19200, 4800, 38400, 57600])
-AUTO_DETECT_UNIT_IDS = get_config_value('AUTO_DETECT_UNIT_IDS',
-                                        [1, 2, 3, 4])
+def get_auto_detect_settings():
+    constants = _load_constants()
+    return constants.get('auto_detect', {
+        "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],
+        "baudrates": [9600, 115200, 19200, 4800, 38400, 57600],
+        "unit_ids": [1, 2, 3, 4]
+    })
+
+AUTO_DETECT = get_auto_detect_settings()
+AUTO_DETECT_PORTS = get_env_value('RTU_AUTO_DETECT_PORTS', AUTO_DETECT.get("ports"))
+AUTO_DETECT_BAUDRATES = get_env_value('RTU_AUTO_DETECT_BAUDRATES', AUTO_DETECT.get("baudrates"))
+AUTO_DETECT_UNIT_IDS = get_env_value('RTU_AUTO_DETECT_UNIT_IDS', AUTO_DETECT.get("unit_ids"))
 
 # Mock mode settings
-MOCK_PORT = 'MOCK'
-MOCK_BAUDRATE = 9600
-MOCK_UNIT_ID = 1
+def get_mock_settings():
+    constants = _load_constants()
+    return constants.get('mock', {
+        "port": "MOCK",
+        "baudrate": 9600,
+        "unit_id": 1
+    })
+
+MOCK_SETTINGS = get_mock_settings()
+MOCK_PORT = get_env_value('RTU_MOCK_PORT', MOCK_SETTINGS.get("port"))
+MOCK_BAUDRATE = get_env_value('RTU_MOCK_BAUDRATE', MOCK_SETTINGS.get("baudrate"))
+MOCK_UNIT_ID = get_env_value('RTU_MOCK_UNIT_ID', MOCK_SETTINGS.get("unit_id"))

@@ -8,18 +8,14 @@ import struct
 from typing import Optional, List, Dict, Tuple
 
 from .crc import calculate_crc, try_alternative_crcs
+from .config import (
+    FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
+    FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
+    FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
+    FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS
+)
 
 logger = logging.getLogger(__name__)
-
-# Standard Modbus function codes
-FUNC_READ_COILS = 0x01
-FUNC_READ_DISCRETE_INPUTS = 0x02
-FUNC_READ_HOLDING_REGISTERS = 0x03
-FUNC_READ_INPUT_REGISTERS = 0x04
-FUNC_WRITE_SINGLE_COIL = 0x05
-FUNC_WRITE_SINGLE_REGISTER = 0x06
-FUNC_WRITE_MULTIPLE_COILS = 0x0F
-FUNC_WRITE_MULTIPLE_REGISTERS = 0x10
 
 # Waveshare-specific function codes
 WAVESHARE_FUNC_READ_COILS = 0x41  # Sometimes used instead of 0x01

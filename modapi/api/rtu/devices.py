@@ -8,11 +8,15 @@ import time
 from typing import List, Optional, Dict, Any, Tuple
 
 from .base import ModbusRTU
-from .protocol import (
+from .config import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
     FUNC_WRITE_SINGLE_COIL, FUNC_WRITE_SINGLE_REGISTER,
     FUNC_WRITE_MULTIPLE_COILS, FUNC_WRITE_MULTIPLE_REGISTERS,
+    MODE_NORMAL, MODE_LINKAGE, MODE_TOGGLE, MODE_EDGE_TRIGGER,
+    TYPE_0_5V, TYPE_0_10V, TYPE_0_20MA, TYPE_4_20MA
+)
+from .protocol import (
     build_read_request, build_write_single_coil_request,
     build_write_single_register_request, build_write_multiple_coils_request,
     build_write_multiple_registers_request, parse_read_coils_response,
@@ -28,12 +32,6 @@ class WaveshareIO8CH(ModbusRTU):
     Based on documentation from:
     http://www.waveshare.com/wiki/Modbus_RTU_IO_8CH
     """
-    
-    # Control modes
-    MODE_NORMAL = 0x00
-    MODE_LINKAGE = 0x01
-    MODE_TOGGLE = 0x02
-    MODE_EDGE_TRIGGER = 0x03
     
     def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 9600, timeout: float = 1.0):
         """Initialize Waveshare IO 8CH module connection"""
@@ -300,11 +298,8 @@ class WaveshareAnalogInput8CH(ModbusRTU):
     https://www.waveshare.com/wiki/Modbus_RTU_Analog_Input_8CH
     """
     
-    # Analog input types
-    TYPE_0_5V = 0x00
-    TYPE_0_10V = 0x01
-    TYPE_0_20MA = 0x02
-    TYPE_4_20MA = 0x03
+    # Analog input types are loaded from config
+    # These will be added to constants.json in the next update
     
     def __init__(self, port: str = '/dev/ttyACM0', baudrate: int = 9600, timeout: float = 1.0):
         """Initialize Waveshare Analog Input 8CH module connection"""
