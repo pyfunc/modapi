@@ -26,7 +26,9 @@ def create_response(command: str) -> Dict[str, Any]:
         'success': False,
         'timestamp': None,
         'operation': None,
-        'error': None
+        'error': None,
+        'port': None,  # Add port field to response
+        'baudrate': None  # Add baudrate field to response
     }
 
 def output_json(data: Dict[str, Any]):
@@ -70,6 +72,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
         else:
             response['port_source'] = 'command_line'
             
+        # Add port to response
         response['port'] = port
         
         # Initialize modbus client
@@ -79,6 +82,9 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
             timeout=timeout,
             verbose=verbose
         )
+        
+        # Add baudrate to response
+        response['baudrate'] = modbus.baudrate
         
         if not modbus.connect():
             response['error'] = f"Failed to connect to port {port}"
@@ -105,7 +111,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                     'register_type': 'coil'
                 })
                 
-                result = modbus.read_coils(address, count, unit)
+                result = modbus.read_coils(address, count, unit=unit)  # Use unit as kwarg
                 if result is not None:
                     response.update({
                         'success': True,
@@ -136,7 +142,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                     'register_type': 'coil'
                 })
                 
-                if modbus.write_coil(address, value, unit):
+                if modbus.write_coil(address, value, unit=unit):  # Use unit as kwarg
                     response.update({
                         'success': True,
                         'message': f"Coil {address} set to {'ON' if value else 'OFF'}",
@@ -165,7 +171,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                     'register_type': 'discrete_input'
                 })
                 
-                result = modbus.read_discrete_inputs(address, count, unit)
+                result = modbus.read_discrete_inputs(address, count, unit=unit)  # Use unit as kwarg
                 if result is not None:
                     response.update({
                         'success': True,
@@ -196,7 +202,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                     'register_type': 'holding_register'
                 })
                 
-                result = modbus.read_holding_registers(address, count, unit)
+                result = modbus.read_holding_registers(address, count, unit=unit)  # Use unit as kwarg
                 if result is not None:
                     response.update({
                         'success': True,
@@ -204,8 +210,8 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                             'address': address,
                             'count': count,
                             'values': result,
-                            'values_dict': {str(i): val for i, val in enumerate(result, address)},
-                            'hex_values': [f"0x{val:04X}" for val in result]
+                            'values_hex': [hex(v) for v in result],
+                            'values_bin': [bin(v) for v in result]
                         },
                         'message': f"Read {count} holding registers starting at address {address}"
                     })
@@ -224,19 +230,21 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                 response.update({
                     'address': address,
                     'value': value,
-                    'value_hex': f"0x{value:04X}",
+                    'value_hex': hex(value),
+                    'value_bin': bin(value),
                     'unit': unit,
                     'register_type': 'holding_register'
                 })
                 
-                if modbus.write_register(address, value, unit):
+                if modbus.write_register(address, value, unit=unit):  # Use unit as kwarg
                     response.update({
                         'success': True,
-                        'message': f"Register {address} set to {value} (0x{value:04X})",
+                        'message': f"Register {address} set to {value}",
                         'data': {
                             'address': address,
                             'value': value,
-                            'value_hex': f"0x{value:04X}"
+                            'value_hex': hex(value),
+                            'value_bin': bin(value)
                         }
                     })
                 else:
@@ -247,7 +255,7 @@ def execute_command(command: str, args: List[str], port: Optional[str] = None,
                 return False, response
                 
         finally:
-            if 'modbus' in locals():
+            if 'modbus' in locals() and hasattr(modbus, 'disconnect'):
                 modbus.disconnect()
                 
         # Return success status
