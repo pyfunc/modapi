@@ -8,6 +8,7 @@ import time
 from typing import List, Optional, Dict, Any, Tuple, Union
 
 from .base import ModbusRTU
+from .config import BAUDRATES, AUTO_DETECT_UNIT_IDS
 from .protocol import (
     FUNC_READ_COILS, FUNC_READ_DISCRETE_INPUTS,
     FUNC_READ_HOLDING_REGISTERS, FUNC_READ_INPUT_REGISTERS,
@@ -274,9 +275,9 @@ class ModbusRTUClient(ModbusRTU):
         if ports is None:
             ports = find_serial_ports()
         
-        # Try each port with common baudrates
-        baudrates = [9600, 115200, 19200, 4800, 38400, 57600]
-        unit_ids = [1, 2, 3, 0]  # Include broadcast address 0
+        # Use baudrates and unit IDs from config
+        baudrates = BAUDRATES
+        unit_ids = AUTO_DETECT_UNIT_IDS + [0]  # Include broadcast address 0
         
         for port in ports:
             for baudrate in baudrates:

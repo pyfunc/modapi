@@ -174,18 +174,24 @@ def get_config_value(key: str, default: Any = None) -> Any:
     # Return default
     return default
 
+# Get baudrates array
+def get_baudrates_array():
+    constants = _load_constants()
+    return constants.get('baudrates', [9600, 115200, 19200, 4800, 38400, 57600])
+
+BAUDRATES = get_baudrates_array()
+
 # Auto-detection settings
 def get_auto_detect_settings():
     constants = _load_constants()
     return constants.get('auto_detect', {
         "ports": ["/dev/ttyACM0", "/dev/ttyUSB0"],
-        "baudrates": [9600, 115200, 19200, 4800, 38400, 57600],
         "unit_ids": [1, 2, 3, 4]
     })
 
 AUTO_DETECT = get_auto_detect_settings()
 AUTO_DETECT_PORTS = get_env_value('RTU_AUTO_DETECT_PORTS', AUTO_DETECT.get("ports"))
-AUTO_DETECT_BAUDRATES = get_env_value('RTU_AUTO_DETECT_BAUDRATES', AUTO_DETECT.get("baudrates"))
+AUTO_DETECT_BAUDRATES = get_env_value('RTU_AUTO_DETECT_BAUDRATES', BAUDRATES)
 AUTO_DETECT_UNIT_IDS = get_env_value('RTU_AUTO_DETECT_UNIT_IDS', AUTO_DETECT.get("unit_ids"))
 
 # Mock mode settings
